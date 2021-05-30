@@ -26,8 +26,6 @@ func (c *chrome) Run() (string, error) {
 
 func (c *chrome) runChromedp(url string) ([]byte, error) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		// 启动界面
-		// chromedp.Flag("headless", false),
 		chromedp.UserAgent(useragent.RandomUserAgent()),
 		chromedp.WindowSize(1920, 720),
 		chromedp.DisableGPU,
@@ -36,18 +34,13 @@ func (c *chrome) runChromedp(url string) ([]byte, error) {
 		chromedp.Flag("incognito", true),
 		chromedp.Flag("ignore-certificate-errors", true),
 		chromedp.ExecPath(c.path),
-		// 隐藏滚动条
-		//chromedp.Flag("hide-scrollbars", false),
 	)
 	ctx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(c.timeout))
-	ctx, cancel = chromedp.NewContext(ctx) //chromedp.WithLogf(log.Printf),
-	//chromedp.WithDebugf(log.Printf),
-	//chromedp.WithErrorf(log.Printf),
-
+	ctx, cancel = chromedp.NewContext(ctx)
 	defer cancel()
-	var buf []byte
 
+	var buf []byte
 	if err := chromedp.Run(ctx, fullScreenshot(url, 90, &buf)); err != nil {
 		return []byte{}, err
 	}
@@ -104,7 +97,6 @@ func fullScreenshot(urlstr string, quality int64, res *[]byte) chromedp.Tasks {
 		chromedp.Navigate(urlstr),
 		chromedp.Sleep(time.Duration(2) * time.Second),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-
 			// 卡在 Page.javascriptDialogOpening
 			chromedp.ListenTarget(ctx, func(ev interface{}) {
 				if _, ok := ev.(*page.EventJavascriptDialogOpening); ok {
@@ -115,16 +107,11 @@ func fullScreenshot(urlstr string, quality int64, res *[]byte) chromedp.Tasks {
 					}()
 				}
 			})
-
 			_, _, contentSize, err := page.GetLayoutMetrics().Do(ctx)
 			if err != nil {
 				return err
 			}
-
-			//width, height := int64(math.Ceil(contentSize.Width)), int64(math.Ceil(contentSize.Height))
 			width, height := int64(1920), int64(1080)
-
-			// force viewport emulation
 			err = emulation.SetDeviceMetricsOverride(width, height, 1, false).
 				WithScreenOrientation(&emulation.ScreenOrientation{
 					Type:  emulation.OrientationTypePortraitPrimary,
@@ -134,14 +121,11 @@ func fullScreenshot(urlstr string, quality int64, res *[]byte) chromedp.Tasks {
 			if err != nil {
 				return err
 			}
-			// capture screenshot
 			*res, err = page.CaptureScreenshot().
 				WithQuality(quality).
 				WithClip(&page.Viewport{
-					X: contentSize.X,
-					Y: contentSize.Y,
-					//Width:  contentSize.Width,
-					//Height: contentSize.Height,
+					X:      contentSize.X,
+					Y:      contentSize.Y,
 					Width:  1920,
 					Height: 1080,
 					Scale:  1,
