@@ -38,7 +38,7 @@ func (c *chrome) InitEnv() error {
 		chromedp.ExecPath(c.path),
 	)
 	c.ctx, c.cancel = chromedp.NewExecAllocator(context.Background(), opts...)
-	c.ctx, c.cancel = context.WithTimeout(c.ctx, time.Second*time.Duration(c.timeout))
+	// c.ctx, c.cancel = context.WithTimeout(c.ctx, time.Second*time.Duration(c.timeout))
 	c.ctx, c.cancel = chromedp.NewContext(c.ctx)
 	err := chromedp.Run(c.ctx, chromedp.Tasks{})
 	if err != nil {
@@ -55,6 +55,7 @@ func (c *chrome) Cancel() {
 func (c *chrome) runChromedp(url string) ([]byte, error) {
 	var buf []byte
 	newContext, cancelFunc := chromedp.NewContext(c.ctx)
+    newContext, cancelFunc = context.WithTimeout(newContext, time.Second*time.Duration(c.timeout))
 	defer cancelFunc()
 	if err := chromedp.Run(newContext, fullScreenshot(url, 90, &buf)); err != nil {
 		return []byte{}, err
