@@ -1,9 +1,11 @@
 package screenshot
 
-type screenshot interface {
-	Run() (string, error)
+type Screenshot interface {
+	Run(url string) (string, error)
+	InitEnv() error
+	Cancel()
 }
 
-func NewScreenShot(url string, timeout int, path string) screenshot {
-	return &chrome{url: url, timeout: timeout * 6, path: path}
+func NewScreenShot(timeout int, path string) Screenshot {
+	return &chrome{timeout: timeout * 6, path: path}
 }

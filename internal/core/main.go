@@ -23,9 +23,15 @@ func NewCore(l log.Log, c config.Terminal) Core {
 func (c *Core) Probe() error {
 	urlchan := make(chan string, c.conf.Threads)
 	urlwait := sync.WaitGroup{}
+	ss := screenshot.NewScreenShot(c.conf.Timeout, c.conf.ChromePath)
+	err := ss.InitEnv()
+	if err != nil {
+		return err
+	}
+	defer ss.Cancel()
 	for i := 0; i < c.conf.Threads; i++ {
 		urlwait.Add(1)
-		go func(w *sync.WaitGroup, u chan string, l log.Log, c config.Terminal) {
+		go func(w *sync.WaitGroup, u chan string, l log.Log, c config.Terminal, screen_shot screenshot.Screenshot) {
 			defer w.Done()
 			for t := range u {
 				httpx := requests.NewHttpx(t, c.Proxy, c.Timeout, l)
@@ -45,8 +51,7 @@ func (c *Core) Probe() error {
 						Image:      "",
 						HTTPDump:   httpx.URLS[j].GetHTTPDump(),
 					}
-					screen_shot := screenshot.NewScreenShot(httpx.URLS[j].GetUrl(), c.Timeout, c.ChromePath)
-					run, err := screen_shot.Run()
+					run, err := screen_shot.Run(httpx.URLS[j].GetUrl())
 					if err != nil {
 						l.Println(err)
 					} else {
@@ -60,7 +65,7 @@ func (c *Core) Probe() error {
 					l.PercentageAdd()
 				}
 			}
-		}(&urlwait, urlchan, c.log, c.conf)
+		}(&urlwait, urlchan, c.log, c.conf, ss)
 	}
 	for url, _ := range c.conf.Probes {
 		urlchan <- url

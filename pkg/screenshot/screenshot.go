@@ -11,20 +11,22 @@ import (
 )
 
 type chrome struct {
-	url     string
 	timeout int
 	path    string
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
-func (c *chrome) Run() (string, error) {
-	buf, err := c.runChromedp(c.url)
+func (c *chrome) Run(url string) (string, error) {
+	buf, err := c.runChromedp(url)
 	if err != nil {
 		return "", err
 	}
 	return "data:image/png;base64, " + base64.StdEncoding.EncodeToString(buf), nil
 }
 
-func (c *chrome) runChromedp(url string) ([]byte, error) {
+// 初始化 母CTX
+func (c *chrome) InitEnv() error {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.UserAgent(useragent.RandomUserAgent()),
 		chromedp.WindowSize(1920, 720),
@@ -35,13 +37,26 @@ func (c *chrome) runChromedp(url string) ([]byte, error) {
 		chromedp.Flag("ignore-certificate-errors", true),
 		chromedp.ExecPath(c.path),
 	)
-	ctx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
-	ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(c.timeout))
-	ctx, cancel = chromedp.NewContext(ctx)
-	defer cancel()
+	c.ctx, c.cancel = chromedp.NewExecAllocator(context.Background(), opts...)
+	c.ctx, c.cancel = context.WithTimeout(c.ctx, time.Second*time.Duration(c.timeout))
+	c.ctx, c.cancel = chromedp.NewContext(c.ctx)
+	err := chromedp.Run(c.ctx, chromedp.Tasks{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
+// 结束母CTX
+func (c *chrome) Cancel() {
+	defer c.cancel()
+}
+
+func (c *chrome) runChromedp(url string) ([]byte, error) {
 	var buf []byte
-	if err := chromedp.Run(ctx, fullScreenshot(url, 90, &buf)); err != nil {
+	newContext, cancelFunc := chromedp.NewContext(c.ctx)
+	defer cancelFunc()
+	if err := chromedp.Run(newContext, fullScreenshot(url, 90, &buf)); err != nil {
 		return []byte{}, err
 	}
 	return buf, nil

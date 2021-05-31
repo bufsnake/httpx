@@ -1,6 +1,6 @@
 ## 简介
 
-> 判断http/https并截图
+> 判断 http/https 并截图
 
 ## Usage
 
@@ -8,9 +8,9 @@
 └> ./httpx
 Usage of ./httpx:
   -chrome string
-    	chrome path
+    	chrome path (default "/opt/google/chrome/chrome")
   -output string
-    	output file name (default "202105292011.html")
+    	output file name (default "202105311320.html")
   -proxy string
     	probe proxy, example: http://127.0.0.1:8080
   -target string
@@ -22,3 +22,8 @@ Usage of ./httpx:
   -timeout int
     	probe http request timeout (default 10)
 ```
+
+## Screenshot
+
+![image-20210531132147789](.images/image-20210531132147789.png)
+
