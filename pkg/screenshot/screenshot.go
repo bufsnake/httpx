@@ -3,10 +3,17 @@ package screenshot
 import (
 	"context"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"github.com/bufsnake/httpx/pkg/useragent"
-	"github.com/chromedp/cdproto/emulation"
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
+	"strings"
+
+	//	log2 "log"
 	"time"
 )
 
@@ -25,129 +32,114 @@ func (c *chrome) Run(url string) (string, error) {
 	return "data:image/png;base64, " + base64.StdEncoding.EncodeToString(buf), nil
 }
 
-// 初始化 母CTX
+// Init Start CTX
 func (c *chrome) InitEnv() error {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.Flag("headless", true),
+		chromedp.Flag("incognito", true),
+		chromedp.Flag("ignore-certificate-errors", true),
 		chromedp.UserAgent(useragent.RandomUserAgent()),
-		chromedp.WindowSize(1920, 720),
+		chromedp.WindowSize(1920, 1080),
 		chromedp.DisableGPU,
 		chromedp.NoSandbox,
 		chromedp.NoDefaultBrowserCheck,
-		chromedp.Flag("incognito", true),
-		chromedp.Flag("ignore-certificate-errors", true),
 		chromedp.ExecPath(c.path),
 	)
 	c.ctx, c.cancel = chromedp.NewExecAllocator(context.Background(), opts...)
-	// c.ctx, c.cancel = context.WithTimeout(c.ctx, time.Second*time.Duration(c.timeout))
 	c.ctx, c.cancel = chromedp.NewContext(c.ctx)
-	err := chromedp.Run(c.ctx, chromedp.Tasks{})
+	err := chromedp.Run(c.ctx, page.Close())
 	if err != nil {
-		return err
+		return errors.New("Init Start Chrome Error: " + err.Error())
 	}
 	return nil
 }
 
-// 结束母CTX
+// End Start CTX
 func (c *chrome) Cancel() {
 	defer c.cancel()
 }
 
+// Start Sub Tabs
 func (c *chrome) runChromedp(url string) ([]byte, error) {
 	var buf []byte
 	newContext, cancelFunc := chromedp.NewContext(c.ctx)
-    newContext, cancelFunc = context.WithTimeout(newContext, time.Second*time.Duration(c.timeout))
 	defer cancelFunc()
-	if err := chromedp.Run(newContext, fullScreenshot(url, 90, &buf)); err != nil {
-		return []byte{}, err
+	chromedp.ListenTarget(newContext, func(ev interface{}) {
+		// JS Dialog
+		if _, ok := ev.(*page.EventJavascriptDialogOpening); ok {
+			/*
+				2021/06/02 01:04:13 <- {"method":"Log.entryAdded","params":{"entry":{"source":"network","level":"error","text":"Failed to load resource: the server responded with a status of 401 (Unauthorized)","timestamp":1.6225670530905408e+12,"url":"http://42.192.77.89:9200/v1/","networkRequestId":"57902.19"}},"sessionId":"D5B25250902223AE0FD9918AE16CB241"}
+				2021/06/02 01:04:13 <- {"method":"Page.javascriptDialogOpening","params":{"url":"http://42.192.77.89:9200/#/","message":"Error: Request failed with status code 401","type":"alert","hasBrowserHandler":false,"defaultPrompt":""},"sessionId":"D5B25250902223AE0FD9918AE16CB241"}
+				2021/06/02 01:04:16 -> {"id":30,"sessionId":"D5B25250902223AE0FD9918AE16CB241","method":"Page.captureScreenshot","params":{"format":"png","quality":100,"clip":{"x":0,"y":0,"width":1920,"height":1080,"scale":1},"fromSurface":true,"captureBeyondViewport":true}}
+			*/
+			// Disable JavaScriptDialog
+			t := page.HandleJavaScriptDialog(false)
+			go func() {
+				if err := chromedp.Run(newContext, t); err != nil {
+					fmt.Println(errors.New("\nrunChromedp error: " + err.Error()))
+				}
+			}()
+		}
+		// chrome IWA
+		// 不影响截图
+		if _, ok := ev.(*network.EventResponseReceived); ok {
+			//if ev.(*network.EventResponseReceived).Response.Headers["Www-Authenticate"] != nil {
+			//	fmt.Println(ev.(*network.EventResponseReceived).Response.Headers["Www-Authenticate"])
+			//}
+		}
+	})
+	// new tabs
+	// chromedp.Run -> newTarget -> target.CreateTarget -> (p *CreateTargetParams) Do -> context canceled/context deadline exceeded
+	// tabs can not auto close
+	if err := chromedp.Run(newContext, captureScreenshot(url, &buf)); err != nil {
+		return []byte{}, errors.New("chromedp.Run error: " + err.Error())
 	}
 	return buf, nil
 }
 
-func fullScreenshot(urlstr string, quality int64, res *[]byte) chromedp.Tasks {
-	script := `(function(w, n, wn) {
-  // Pass the Webdriver Test.
-  Object.defineProperty(n, 'webdriver', {
-    get: () => false,
-  });
-  // Pass the Plugins Length Test.
-  // Overwrite the plugins property to use a custom getter.
-  Object.defineProperty(n, 'plugins', {
-    // This just needs to have length > 0 for the current test,
-    // but we could mock the plugins too if necessary.
-    get: () => [1, 2, 3, 4, 5],
-  });
-  // Pass the Languages Test.
-  // Overwrite the plugins property to use a custom getter.
-  Object.defineProperty(n, 'languages', {
-    get: () => ['en-US', 'en'],
-  });
-  // Pass the Chrome Test.
-  // We can mock this in as much depth as we need for the test.
-  w.chrome = {
-    runtime: {},
-  };
-  // Pass the Permissions Test.
-  const originalQuery = wn.permissions.query;
-  return wn.permissions.query = (parameters) => (
-    parameters.name === 'notifications' ?
-      Promise.resolve({ state: Notification.permission }) :
-      originalQuery(parameters)
-  );
-})(window, navigator, window.navigator);`
-
-	// ignore alert
-	script += `window.alert = function() {};`
-	script += `window.confirm = function() {};`
-	script += `window.prompt = function() {};`
-
+func captureScreenshot(urlstr string, res *[]byte) chromedp.Tasks {
 	return chromedp.Tasks{
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			var err error
-			_, err = page.AddScriptToEvaluateOnNewDocument(script).Do(ctx)
+			err := chromedp.Navigate(urlstr).Do(ctx)
 			if err != nil {
-				return err
+				// 401 验证问题
+				if !strings.Contains(err.Error(), "page load error net::ERR_INVALID_AUTH_CREDENTIALS") {
+					// statuscode = 30x, close table
+					// tab从右往左进行关闭 context deadline exceeded 就是因为这个
+					errs := target.CloseTarget(chromedp.FromContext(ctx).Target.TargetID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Browser))
+					if errs != nil {
+						return errors.New(fmt.Sprintf("Navigate CloseTarget %s", err))
+					}
+					return err
+				}
 			}
 			return nil
 		}),
-		chromedp.EmulateViewport(1920, 1080, chromedp.EmulateScale(2)),
-		chromedp.Navigate(urlstr),
-		chromedp.Sleep(time.Duration(2) * time.Second),
+		chromedp.Sleep(time.Second),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			// 卡在 Page.javascriptDialogOpening
-			chromedp.ListenTarget(ctx, func(ev interface{}) {
-				if _, ok := ev.(*page.EventJavascriptDialogOpening); ok {
-					t := page.HandleJavaScriptDialog(false)
-					go func() {
-						if err := chromedp.Run(ctx, t); err != nil {
-						}
-					}()
-				}
-			})
-			_, _, contentSize, err := page.GetLayoutMetrics().Do(ctx)
-			if err != nil {
-				return err
-			}
-			width, height := int64(1920), int64(1080)
-			err = emulation.SetDeviceMetricsOverride(width, height, 1, false).
-				WithScreenOrientation(&emulation.ScreenOrientation{
-					Type:  emulation.OrientationTypePortraitPrimary,
-					Angle: 0,
-				}).
-				Do(ctx)
-			if err != nil {
-				return err
-			}
-			*res, err = page.CaptureScreenshot().
-				WithQuality(quality).
+			buf, err := page.CaptureScreenshot().
+				WithQuality(80).
+				WithFormat("png").
+				WithFromSurface(true).
+				WithCaptureBeyondViewport(true).
 				WithClip(&page.Viewport{
-					X:      contentSize.X,
-					Y:      contentSize.Y,
+					X:      0,
+					Y:      0,
 					Width:  1920,
-					Height: 1080,
+					Height: 1000,
 					Scale:  1,
 				}).Do(ctx)
 			if err != nil {
-				return err
+				return errors.New("captureScreenshot error: " + err.Error())
+			}
+			*res = buf
+			return nil
+		}),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			// tab从右往左进行关闭 context deadline exceeded 就是因为这个
+			err := target.CloseTarget(chromedp.FromContext(ctx).Target.TargetID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Browser))
+			if err != nil {
+				return errors.New(fmt.Sprintf("CloseTarget %s", err))
 			}
 			return nil
 		}),
