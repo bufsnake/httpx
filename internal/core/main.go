@@ -29,6 +29,7 @@ func (c *Core) Probe() error {
 		return err
 	}
 	defer ss.Cancel()
+	go ss.SwitchTab()
 	for i := 0; i < c.conf.Threads; i++ {
 		urlwait.Add(1)
 		go func(w *sync.WaitGroup, u chan string, l log.Log, c config.Terminal, screen_shot screenshot.Screenshot) {

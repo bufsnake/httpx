@@ -54,6 +54,22 @@ func (c *chrome) InitEnv() error {
 	return nil
 }
 
+// switch tabs, auto close tab
+func (c *chrome) SwitchTab() {
+	for {
+		targets, err := chromedp.Targets(c.ctx)
+		if err != nil {
+			continue
+		}
+		for i := 0; i < len(targets); i++ {
+			err = target.ActivateTarget(targets[i].TargetID).Do(cdp.WithExecutor(c.ctx, chromedp.FromContext(c.ctx).Browser))
+			if err != nil {
+				continue
+			}
+		}
+	}
+}
+
 // End Start CTX
 func (c *chrome) Cancel() {
 	defer c.cancel()

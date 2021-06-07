@@ -4,6 +4,7 @@ type Screenshot interface {
 	Run(url string) (string, error)
 	InitEnv() error
 	Cancel()
+	SwitchTab()
 }
 
 func NewScreenShot(timeout int, path string) Screenshot {
