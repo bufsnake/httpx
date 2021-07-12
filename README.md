@@ -5,12 +5,13 @@
 ## Usage
 
 ```bash
-└> ./httpx
 Usage of ./httpx:
   -chrome string
     	chrome path (default "/opt/google/chrome/chrome")
+  -headless-proxy string
+    	chrome proxy
   -output string
-    	output file name (default "202105311320.html")
+    	output file name (default "202107120951.html")
   -proxy string
     	probe proxy, example: http://127.0.0.1:8080
   -target string
