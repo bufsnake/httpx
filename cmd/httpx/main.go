@@ -21,6 +21,7 @@ func main() {
 	flag.IntVar(&conf.Timeout, "timeout", 10, "probe http request timeout")
 	flag.StringVar(&conf.Output, "output", time.Now().Format("200601021504")+".html", "output file name")
 	flag.StringVar(&conf.ChromePath, "chrome", "/opt/google/chrome/chrome", "chrome path")
+	flag.StringVar(&conf.HeadlessProxy, "headless-proxy", "", "chrome proxy")
 	flag.Parse()
 	if conf.Target == "" && conf.Targets == "" {
 		flag.Usage()

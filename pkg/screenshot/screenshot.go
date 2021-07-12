@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/bufsnake/httpx/config"
 	"github.com/bufsnake/httpx/pkg/useragent"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/network"
@@ -22,6 +23,7 @@ type chrome struct {
 	path    string
 	ctx     context.Context
 	cancel  context.CancelFunc
+	conf_   config.Terminal
 }
 
 func (c *chrome) Run(url string) (string, error) {
@@ -43,8 +45,12 @@ func (c *chrome) InitEnv() error {
 		chromedp.DisableGPU,
 		chromedp.NoSandbox,
 		chromedp.NoDefaultBrowserCheck,
+		chromedp.Flag("proxy-bypass-list", "<-loopback>"),
 		chromedp.ExecPath(c.path),
 	)
+	if c.conf_.HeadlessProxy != "" {
+		opts = append(opts, chromedp.ProxyServer(c.conf_.HeadlessProxy))
+	}
 	c.ctx, c.cancel = chromedp.NewExecAllocator(context.Background(), opts...)
 	c.ctx, c.cancel = chromedp.NewContext(c.ctx)
 	err := chromedp.Run(c.ctx, page.Close())
@@ -114,9 +120,47 @@ func (c *chrome) runChromedp(url string) ([]byte, error) {
 }
 
 func captureScreenshot(urlstr string, res *[]byte) chromedp.Tasks {
+	bypass_headless_detect := `(function(w, n, wn) {
+  // Pass the Webdriver Test.
+  Object.defineProperty(n, 'webdriver', {
+    get: () => false,
+  });
+
+  // Pass the Plugins Length Test.
+  // Overwrite the plugins property to use a custom getter.
+  Object.defineProperty(n, 'plugins', {
+    // This just needs to have length > 0 for the current test,
+    // but we could mock the plugins too if necessary.
+    get: () => [1, 2, 3, 4, 5],
+  });
+
+  // Pass the Languages Test.
+  // Overwrite the plugins property to use a custom getter.
+  Object.defineProperty(n, 'languages', {
+    get: () => ['en-US', 'en'],
+  });
+
+  // Pass the Chrome Test.
+  // We can mock this in as much depth as we need for the test.
+  w.chrome = {
+    runtime: {},
+  };
+
+  // Pass the Permissions Test.
+  const originalQuery = wn.permissions.query;
+  return wn.permissions.query = (parameters) => (
+    parameters.name === 'notifications' ?
+      Promise.resolve({ state: Notification.permission }) :
+      originalQuery(parameters)
+  );
+})(window, navigator, window.navigator);`
 	return chromedp.Tasks{
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			err := chromedp.Navigate(urlstr).Do(ctx)
+			_, err := page.AddScriptToEvaluateOnNewDocument(bypass_headless_detect).Do(ctx)
+			if err != nil {
+				return errors.New(fmt.Sprintf("AddScriptToEvaluateOnNewDocument %s", err))
+			}
+			err = chromedp.Navigate(urlstr).Do(ctx)
 			if err != nil {
 				// 401 验证问题
 				if !strings.Contains(err.Error(), "page load error net::ERR_INVALID_AUTH_CREDENTIALS") {

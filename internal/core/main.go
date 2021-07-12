@@ -23,7 +23,7 @@ func NewCore(l log.Log, c config.Terminal) Core {
 func (c *Core) Probe() error {
 	urlchan := make(chan string, c.conf.Threads)
 	urlwait := sync.WaitGroup{}
-	ss := screenshot.NewScreenShot(c.conf.Timeout, c.conf.ChromePath)
+	ss := screenshot.NewScreenShot(c.conf.Timeout, c.conf.ChromePath, c.conf)
 	err := ss.InitEnv()
 	if err != nil {
 		return err
