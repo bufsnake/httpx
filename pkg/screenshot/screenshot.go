@@ -20,7 +20,6 @@ import (
 
 type chrome struct {
 	timeout int
-	path    string
 	ctx     context.Context
 	cancel  context.CancelFunc
 	conf_   config.Terminal
@@ -46,10 +45,12 @@ func (c *chrome) InitEnv() error {
 		chromedp.NoSandbox,
 		chromedp.NoDefaultBrowserCheck,
 		chromedp.Flag("proxy-bypass-list", "<-loopback>"),
-		chromedp.ExecPath(c.path),
 	)
 	if c.conf_.HeadlessProxy != "" {
 		opts = append(opts, chromedp.ProxyServer(c.conf_.HeadlessProxy))
+	}
+	if c.conf_.ChromePath != "" {
+		opts = append(opts, chromedp.ExecPath(c.conf_.ChromePath))
 	}
 	c.ctx, c.cancel = chromedp.NewExecAllocator(context.Background(), opts...)
 	c.ctx, c.cancel = chromedp.NewContext(c.ctx)

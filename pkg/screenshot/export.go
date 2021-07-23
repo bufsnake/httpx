@@ -9,6 +9,6 @@ type Screenshot interface {
 	SwitchTab()
 }
 
-func NewScreenShot(timeout int, path string, conf config.Terminal) Screenshot {
-	return &chrome{timeout: timeout * 6, path: path, conf_: conf}
+func NewScreenShot(conf config.Terminal) Screenshot {
+	return &chrome{timeout: conf.Timeout * 6, conf_: conf}
 }

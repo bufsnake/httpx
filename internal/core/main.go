@@ -23,7 +23,7 @@ func NewCore(l log.Log, c config.Terminal) Core {
 func (c *Core) Probe() error {
 	urlchan := make(chan string, c.conf.Threads)
 	urlwait := sync.WaitGroup{}
-	ss := screenshot.NewScreenShot(c.conf.Timeout, c.conf.ChromePath, c.conf)
+	ss := screenshot.NewScreenShot(c.conf)
 	err := ss.InitEnv()
 	if err != nil {
 		return err
@@ -53,9 +53,7 @@ func (c *Core) Probe() error {
 						HTTPDump:   httpx.URLS[j].GetHTTPDump(),
 					}
 					run, err := screen_shot.Run(httpx.URLS[j].GetUrl())
-					if err != nil {
-						l.Println(err)
-					} else {
+					if err == nil {
 						data.Image = run
 					}
 					l.Println("["+BrightGreen(data.StatusCode).String()+"]", "["+BrightWhite(data.URL).String()+"]", "["+BrightRed(data.BodyLength).String()+"]", "["+BrightCyan(data.Title).String()+"]", "["+BrightBlue(data.CreateTime).String()+"]")

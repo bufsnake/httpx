@@ -37,8 +37,6 @@ func (h *httpx) Run() error {
 			h.lock.Lock()
 			h.URLS = append(h.URLS, http)
 			h.lock.Unlock()
-		} else {
-			h.log.Println("httpx eror", err)
 		}
 	}()
 	go func() {
@@ -48,8 +46,6 @@ func (h *httpx) Run() error {
 			h.lock.Lock()
 			h.URLS = append(h.URLS, https)
 			h.lock.Unlock()
-		} else {
-			h.log.Println("httpx eror", err)
 		}
 	}()
 	wghttpx.Wait()

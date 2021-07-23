@@ -5,6 +5,7 @@ import (
 	"math/rand"
 )
 
+// REF: https://github.com/gocolly/colly
 var uaGens = []func() string{
 	genFirefoxUA,
 	genChromeUA,
