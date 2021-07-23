@@ -7,6 +7,7 @@ import (
 	"github.com/bufsnake/httpx/pkg/screenshot"
 	. "github.com/logrusorgru/aurora"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -35,30 +36,42 @@ func (c *Core) Probe() error {
 		go func(w *sync.WaitGroup, u chan string, l log.Log, c config.Terminal, screen_shot screenshot.Screenshot) {
 			defer w.Done()
 			for t := range u {
-				httpx := requests.NewHttpx(t, c.Proxy, c.Timeout, l)
-				err := httpx.Run()
+				httpx := requests.NewHttpx(strings.Trim(t, "/")+"/"+strings.TrimLeft(c.URI, "/"), c.Proxy, c.Timeout, l)
+				err = httpx.Run()
 				if err != nil {
 					l.Println(err)
 					continue
 				}
-				for j := 0; j < len(httpx.URLS); j++ {
-					data := config.OutputData{
-						ID:         1,
-						URL:        httpx.URLS[j].GetUrl(),
-						Title:      httpx.URLS[j].GetTitle(),
-						StatusCode: strconv.Itoa(httpx.URLS[j].GetStatusCode()),
-						BodyLength: strconv.Itoa(httpx.URLS[j].GetLength()),
-						CreateTime: time.Now().Format("2006-01-02 15:04:05"),
-						Image:      "",
-						HTTPDump:   httpx.URLS[j].GetHTTPDump(),
+				if c.DisableScreenshot {
+					for j := 0; j < len(httpx.URLS); j++ {
+						if c.Search != "" && strings.Contains(httpx.URLS[j].GetHTTPDump(), c.Search) {
+							l.Println("["+BrightGreen(strconv.Itoa(httpx.URLS[j].GetStatusCode())).String()+"]", "["+BrightWhite(httpx.URLS[j].GetUrl()).String()+"]", "["+BrightRed(strconv.Itoa(httpx.URLS[j].GetLength())).String()+"]", "["+BrightCyan(httpx.URLS[j].GetTitle()).String()+"]", "["+BrightBlue(time.Now().Format("2006-01-02 15:04:05")).String()+"]")
+						}
+						l.PercentageAdd()
 					}
-					run, err := screen_shot.Run(httpx.URLS[j].GetUrl())
-					if err == nil {
-						data.Image = run
+				} else {
+					for j := 0; j < len(httpx.URLS); j++ {
+						if c.Search != "" && strings.Contains(httpx.URLS[j].GetHTTPDump(), c.Search) {
+							data := config.OutputData{
+								ID:         1,
+								URL:        httpx.URLS[j].GetUrl(),
+								Title:      httpx.URLS[j].GetTitle(),
+								StatusCode: strconv.Itoa(httpx.URLS[j].GetStatusCode()),
+								BodyLength: strconv.Itoa(httpx.URLS[j].GetLength()),
+								CreateTime: time.Now().Format("2006-01-02 15:04:05"),
+								Image:      "",
+								HTTPDump:   httpx.URLS[j].GetHTTPDump(),
+							}
+							run, err := screen_shot.Run(strings.Trim(httpx.URLS[j].GetUrl(), "/") + "/" + strings.TrimLeft(c.URI, "/"))
+							if err == nil {
+								data.Image = run
+							}
+							l.Println("["+BrightGreen(data.StatusCode).String()+"]", "["+BrightWhite(data.URL).String()+"]", "["+BrightRed(data.BodyLength).String()+"]", "["+BrightCyan(data.Title).String()+"]", "["+BrightBlue(data.CreateTime).String()+"]")
+							l.OutputHTML(data)
+
+						}
+						l.PercentageAdd()
 					}
-					l.Println("["+BrightGreen(data.StatusCode).String()+"]", "["+BrightWhite(data.URL).String()+"]", "["+BrightRed(data.BodyLength).String()+"]", "["+BrightCyan(data.Title).String()+"]", "["+BrightBlue(data.CreateTime).String()+"]")
-					l.OutputHTML(data)
-					l.PercentageAdd()
 				}
 				for j := 0; j < 2-len(httpx.URLS); j++ {
 					l.PercentageAdd()

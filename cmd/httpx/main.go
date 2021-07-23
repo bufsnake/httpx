@@ -14,14 +14,17 @@ import (
 
 func main() {
 	conf := config.Terminal{}
-	flag.StringVar(&conf.Target, "target", "", "target ip:port")
-	flag.StringVar(&conf.Targets, "targets", "", "target ip:port list file")
-	flag.IntVar(&conf.Threads, "thread", 10, "probe thread")
-	flag.StringVar(&conf.Proxy, "proxy", "", "probe proxy, example: http://127.0.0.1:8080")
-	flag.IntVar(&conf.Timeout, "timeout", 10, "probe http request timeout")
+	flag.StringVar(&conf.Target, "target", "", "target ip:port/scheme://ip:port")
+	flag.StringVar(&conf.Targets, "targets", "", "target ip:port/scheme://ip:port list file")
+	flag.IntVar(&conf.Threads, "thread", 10, "config probe thread")
+	flag.StringVar(&conf.Proxy, "proxy", "", "config probe proxy, example: http://127.0.0.1:8080")
+	flag.IntVar(&conf.Timeout, "timeout", 10, "config probe http request timeout")
 	flag.StringVar(&conf.Output, "output", time.Now().Format("200601021504")+".html", "output file name")
-	flag.StringVar(&conf.ChromePath, "chrome", "", "chrome path")
-	flag.StringVar(&conf.HeadlessProxy, "headless-proxy", "", "chrome proxy")
+	flag.StringVar(&conf.URI, "uri", "", "specify uri for probe or screenshot")
+	flag.StringVar(&conf.ChromePath, "chrome-path", "", "chrome browser path")
+	flag.StringVar(&conf.HeadlessProxy, "headless-proxy", "", "chrome browser proxy")
+	flag.StringVar(&conf.Search, "search", "", "search string from response")
+	flag.BoolVar(&conf.DisableScreenshot, "disable-screenshot", false, "disable screenshot")
 	flag.Parse()
 	if conf.Target == "" && conf.Targets == "" {
 		flag.Usage()

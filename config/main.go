@@ -14,13 +14,16 @@ type OutputData struct {
 
 // terminal options
 type Terminal struct {
-	Probes        map[string]bool // all probe data
-	Target        string          // single target
-	Targets       string          // multiple targets
-	Threads       int             // scan threads
-	Proxy         string          // proxy
-	HeadlessProxy string          // headless proxy
-	Timeout       int             // http request timeout
-	ChromePath    string          // screenshot chrome path
-	Output        string          // output file，default .html
+	Probes            map[string]bool // all probe data
+	Target            string          // single target
+	Targets           string          // multiple targets
+	Threads           int             // scan threads
+	Proxy             string          // proxy
+	HeadlessProxy     string          // headless proxy
+	Timeout           int             // http request timeout
+	ChromePath        string          // screenshot chrome path
+	Output            string          // output file，default .html
+	URI               string          // URL URI
+	DisableScreenshot bool            // disable screenshot
+	Search            string          // search string from body TODO: support query dsl
 }
