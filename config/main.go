@@ -26,4 +26,5 @@ type Terminal struct {
 	URI               string          // URL URI
 	DisableScreenshot bool            // disable screenshot
 	Search            string          // search string from body TODO: support query dsl
+	DisplayError      bool            // Show error
 }

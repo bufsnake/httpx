@@ -1,17 +1,19 @@
 package requests
 
 import (
+	"fmt"
 	"github.com/bufsnake/httpx/pkg/log"
 	"sync"
 )
 
 type httpx struct {
-	url     string
-	proxy   string
-	timeout int
-	URLS    []*request
-	lock    sync.Mutex
-	log     log.Log
+	url      string
+	proxy    string
+	timeout  int
+	URLS     []*request
+	lock     sync.Mutex
+	log      log.Log
+	logerror bool
 }
 
 func (h *httpx) Run() error {
@@ -37,6 +39,9 @@ func (h *httpx) Run() error {
 			h.URLS = append(h.URLS, http)
 			h.lock.Unlock()
 		}
+		if err != nil && h.logerror {
+			fmt.Println("\r", err)
+		}
 	}()
 	go func() {
 		defer wghttpx.Done()
@@ -45,6 +50,9 @@ func (h *httpx) Run() error {
 			h.lock.Lock()
 			h.URLS = append(h.URLS, https)
 			h.lock.Unlock()
+		}
+		if err != nil && h.logerror {
+			fmt.Println("\r", err)
 		}
 	}()
 	wghttpx.Wait()
