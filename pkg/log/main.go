@@ -24,6 +24,7 @@ func (l *Log) Println(a ...interface{}) {
 	temp := make([]interface{}, 0)
 	temp = append(temp, "\r")
 	temp = append(temp, a...)
+	temp = append(temp, "                  ")
 	fmt.Println(temp...)
 	l.percentage()
 }

@@ -44,6 +44,7 @@ func (c *chrome) InitEnv() error {
 		chromedp.DisableGPU,
 		chromedp.NoSandbox,
 		chromedp.NoDefaultBrowserCheck,
+		chromedp.NoFirstRun,
 		chromedp.Flag("proxy-bypass-list", "<-loopback>"),
 	)
 	if c.conf_.HeadlessProxy != "" {
@@ -74,6 +75,7 @@ func (c *chrome) SwitchTab() {
 				continue
 			}
 		}
+		time.Sleep(3 * time.Second)
 	}
 }
 
@@ -86,6 +88,8 @@ func (c *chrome) Cancel() {
 func (c *chrome) runChromedp(url string) ([]byte, error) {
 	var buf []byte
 	newContext, cancelFunc := chromedp.NewContext(c.ctx)
+	defer cancelFunc()
+	newContext, cancelFunc = context.WithTimeout(newContext, 60*time.Second)
 	defer cancelFunc()
 	chromedp.ListenTarget(newContext, func(ev interface{}) {
 		// JS Dialog
