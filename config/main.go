@@ -27,4 +27,5 @@ type Terminal struct {
 	DisableScreenshot bool            // disable screenshot
 	Search            string          // search string from body TODO: support query dsl
 	DisplayError      bool            // Show error
+	AllowJump         bool            // allow jump
 }

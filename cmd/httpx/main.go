@@ -26,6 +26,7 @@ func main() {
 	flag.StringVar(&conf.Search, "search", "", "search string from response")
 	flag.BoolVar(&conf.DisableScreenshot, "disable-screenshot", false, "disable screenshot")
 	flag.BoolVar(&conf.DisplayError, "display-error", false, "display error")
+	flag.BoolVar(&conf.AllowJump, "allow-jump", false, "allow jump")
 	flag.Parse()
 	if conf.Target == "" && conf.Targets == "" {
 		flag.Usage()

@@ -25,14 +25,17 @@ type request struct {
 	timeout     int
 	http_dump   string
 	proxy       string
+	allowjump   bool
 }
 
 func (r *request) Run() error {
 	cli := http.Client{
 		Timeout: time.Duration(r.timeout) * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+	}
+	if !r.allowjump {
+		cli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
-		},
+		}
 	}
 	transport := http.Transport{
 		TLSClientConfig: &tls.Config{

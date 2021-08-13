@@ -7,13 +7,14 @@ import (
 )
 
 type httpx struct {
-	url      string
-	proxy    string
-	timeout  int
-	URLS     []*request
-	lock     sync.Mutex
-	log      log.Log
-	logerror bool
+	url       string
+	proxy     string
+	timeout   int
+	URLS      []*request
+	lock      sync.Mutex
+	log       log.Log
+	logerror  bool
+	allowjump bool
 }
 
 func (h *httpx) Run() error {
@@ -27,8 +28,8 @@ func (h *httpx) Run() error {
 	//		httpvs = "https://" + urlsp[0]
 	//	}
 	//}
-	http := NewRequest(httpv, h.proxy, h.timeout)
-	https := NewRequest(httpvs, h.proxy, h.timeout)
+	http := NewRequest(httpv, h.proxy, h.timeout, h.allowjump)
+	https := NewRequest(httpvs, h.proxy, h.timeout, h.allowjump)
 	wghttpx := sync.WaitGroup{}
 	wghttpx.Add(2)
 	go func() {

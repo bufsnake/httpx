@@ -37,7 +37,7 @@ func (c *Core) Probe() error {
 		go func(w *sync.WaitGroup, u chan string, l log.Log, c config.Terminal, screen_shot screenshot.Screenshot) {
 			defer w.Done()
 			for t := range u {
-				httpx := requests.NewHttpx(strings.Trim(t, "/")+"/"+strings.TrimLeft(c.URI, "/"), c.Proxy, c.Timeout, l, c.DisplayError)
+				httpx := requests.NewHttpx(strings.Trim(t, "/")+"/"+strings.TrimLeft(c.URI, "/"), c.Proxy, c.Timeout, l, c.DisplayError, c.AllowJump)
 				err = httpx.Run()
 				if err != nil {
 					l.Println(err)
