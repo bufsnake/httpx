@@ -28,4 +28,5 @@ type Terminal struct {
 	Search            string          // search string from body TODO: support query dsl
 	DisplayError      bool            // Show error
 	AllowJump         bool            // allow jump
+	Silent            bool            // silent model
 }

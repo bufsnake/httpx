@@ -27,6 +27,7 @@ func main() {
 	flag.BoolVar(&conf.DisableScreenshot, "disable-screenshot", false, "disable screenshot")
 	flag.BoolVar(&conf.DisplayError, "display-error", false, "display error")
 	flag.BoolVar(&conf.AllowJump, "allow-jump", false, "allow jump")
+	flag.BoolVar(&conf.Silent, "silent", false, "silent output")
 	flag.Parse()
 	if conf.Target == "" && conf.Targets == "" {
 		flag.Usage()
@@ -85,6 +86,7 @@ func main() {
 		Conf:       conf,
 		Once:       &once,
 		StartTime:  time.Now(),
+		Silent:     conf.Silent,
 	}
 	go log.Bar()
 	conf.Probes = probes
@@ -93,6 +95,9 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+	if log.Silent {
+		return
 	}
 	fmt.Println()
 }
