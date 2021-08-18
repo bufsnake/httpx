@@ -5,20 +5,25 @@
 ## Usage
 
 ```bash
--> % ./httpx
 Usage of ./httpx:
+  -allow-jump
+    	allow jump
   -chrome-path string
     	chrome browser path
   -disable-screenshot
     	disable screenshot
+  -display-error
+    	display error
   -headless-proxy string
     	chrome browser proxy
   -output string
-    	output file name (default "202107231356.html")
+    	output file name (default "202108181708.html")
   -proxy string
     	config probe proxy, example: http://127.0.0.1:8080
   -search string
     	search string from response
+  -silent
+    	silent output
   -target string
     	target ip:port/scheme://ip:port
   -targets string
@@ -29,6 +34,20 @@ Usage of ./httpx:
     	config probe http request timeout (default 10)
   -uri string
     	specify uri for probe or screenshot
+```
+
+> example:
+
+```
+▶ cat domains.txt | ./httpx
+```
+
+```
+▶ ./httpx -target http://xxx.xxx.xxx.xxx
+```
+
+```
+▶ ./httpx -targets domains.txt
 ```
 
 ## Screenshot
