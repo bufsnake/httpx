@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"time"
+    "bufio"
 )
 
 func main() {
@@ -29,10 +30,6 @@ func main() {
 	flag.BoolVar(&conf.AllowJump, "allow-jump", false, "allow jump")
 	flag.BoolVar(&conf.Silent, "silent", false, "silent output")
 	flag.Parse()
-	if conf.Target == "" && conf.Targets == "" {
-		flag.Usage()
-		os.Exit(1)
-	}
 	if conf.Proxy != "" {
 		_, err := url.Parse(conf.Proxy)
 		if err != nil {
@@ -57,6 +54,19 @@ func main() {
 			}
 			probes[urls[i]] = true
 		}
+    } else {
+        sc := bufio.NewScanner(os.Stdin)
+        for sc.Scan() {
+            probes[sc.Text()] = true
+        }
+        if err := sc.Err(); err != nil {
+            fmt.Println("failed to read input:", err)
+            os.Exit(1)
+        }
+    }
+	if len(probes) == 0 {
+		flag.Usage()
+		os.Exit(1)
 	}
 	temp_probes := probes
 	for probe, _ := range temp_probes {
