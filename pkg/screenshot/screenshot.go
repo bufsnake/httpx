@@ -47,7 +47,7 @@ func (c *chrome) Run(url string) (string, error) {
 		return "", err
 	}
 	filename := ".images/" + strconv.Itoa(int(time.Now().Unix())) + "_" + randString(10) + ".png"
-	err = os.WriteFile(filename, buf, 777)
+	err = os.WriteFile(filename, buf, 0777)
 	if err != nil {
 		fmt.Println("\r", filename, err)
 		os.Exit(1)
