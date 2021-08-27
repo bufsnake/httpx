@@ -2,7 +2,6 @@ package screenshot
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/bufsnake/httpx/config"
@@ -12,6 +11,9 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
+	"math/rand"
+	"os"
+	"strconv"
 	"strings"
 
 	//	log2 "log"
@@ -25,12 +27,33 @@ type chrome struct {
 	conf_   config.Terminal
 }
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randString(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
 func (c *chrome) Run(url string) (string, error) {
 	buf, err := c.runChromedp(url)
 	if err != nil {
 		return "", err
 	}
-	return "data:image/png;base64, " + base64.StdEncoding.EncodeToString(buf), nil
+	filename := ".images/" + strconv.Itoa(int(time.Now().Unix())) + "_" + randString(10) + ".png"
+	err = os.WriteFile(filename, buf, 777)
+	if err != nil {
+		fmt.Println("\r", filename, err)
+		os.Exit(1)
+		return "", err
+	}
+	return filename, nil
 }
 
 // Init Start CTX

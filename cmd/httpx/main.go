@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"github.com/bufsnake/httpx/config"
@@ -8,10 +9,40 @@ import (
 	"github.com/bufsnake/httpx/pkg/log"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
+	"syscall"
 	"time"
-    "bufio"
 )
+
+func init() {
+	// 开启多核模式
+	runtime.GOMAXPROCS(runtime.NumCPU() * 3 / 4)
+	// 关闭 GIN Debug模式
+	// 设置工具可打开的文件描述符
+	var rLimit syscall.Rlimit
+	rLimit.Max = 999999
+	rLimit.Cur = 999999
+	if runtime.GOOS == "darwin" {
+		rLimit.Cur = 10240
+	}
+	err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	_ = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+
+	images := "./.images/"
+	if !exists(images) {
+		err = os.Mkdir(images, 0777)
+		if err != nil {
+			fmt.Println("create output file path error", err)
+			os.Exit(1)
+		}
+	}
+
+}
 
 func main() {
 	conf := config.Terminal{}
@@ -54,16 +85,16 @@ func main() {
 			}
 			probes[urls[i]] = true
 		}
-    } else {
-        sc := bufio.NewScanner(os.Stdin)
-        for sc.Scan() {
-            probes[sc.Text()] = true
-        }
-        if err := sc.Err(); err != nil {
-            fmt.Println("failed to read input:", err)
-            os.Exit(1)
-        }
-    }
+	} else {
+		sc := bufio.NewScanner(os.Stdin)
+		for sc.Scan() {
+			probes[sc.Text()] = true
+		}
+		if err := sc.Err(); err != nil {
+			fmt.Println("failed to read input:", err)
+			os.Exit(1)
+		}
+	}
 	if len(probes) == 0 {
 		flag.Usage()
 		os.Exit(1)
@@ -110,4 +141,15 @@ func main() {
 		return
 	}
 	fmt.Println()
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path) //os.Stat获取文件信息
+	if err != nil {
+		if os.IsExist(err) {
+			return true
+		}
+		return false
+	}
+	return true
 }
