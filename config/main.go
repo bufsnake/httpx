@@ -1,17 +1,5 @@
 package config
 
-// output front html
-type OutputData struct {
-	ID         int    `json:"id"`
-	URL        string `json:"url"`
-	Title      string `json:"title"`
-	StatusCode string `json:"statuscode"`
-	BodyLength string `json:"bodylength"`
-	CreateTime string `json:"createtime"`
-	Image      string `json:"image"`
-	HTTPDump   string `json:"httpdump"`
-}
-
 // terminal options
 type Terminal struct {
 	Probes            map[string]bool // all probe data
@@ -29,4 +17,5 @@ type Terminal struct {
 	DisplayError      bool            // Show error
 	AllowJump         bool            // allow jump
 	Silent            bool            // silent model
+	Server            bool            // server model
 }

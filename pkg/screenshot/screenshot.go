@@ -2,18 +2,18 @@ package screenshot
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/bufsnake/httpx/config"
 	"github.com/bufsnake/httpx/pkg/useragent"
+	"github.com/bufsnake/httpx/pkg/utils"
 	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
-	"math/rand"
-	"os"
-	"strconv"
 	"strings"
 
 	//	log2 "log"
@@ -27,33 +27,48 @@ type chrome struct {
 	conf_   config.Terminal
 }
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
+var bypass_headless_detect = `(function(w, n, wn) {
+  // Pass the Webdriver Test.
+  Object.defineProperty(n, 'webdriver', {
+    get: () => false,
+  });
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+  // Pass the Plugins Length Test.
+  // Overwrite the plugins property to use a custom getter.
+  Object.defineProperty(n, 'plugins', {
+    // This just needs to have length > 0 for the current test,
+    // but we could mock the plugins too if necessary.
+    get: () => [1, 2, 3, 4, 5],
+  });
 
-func randString(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return string(b)
-}
+  // Pass the Languages Test.
+  // Overwrite the plugins property to use a custom getter.
+  Object.defineProperty(n, 'languages', {
+    get: () => ['en-US', 'en'],
+  });
 
-func (c *chrome) Run(url string) (string, error) {
-	buf, err := c.runChromedp(url)
+  // Pass the Chrome Test.
+  // We can mock this in as much depth as we need for the test.
+  w.chrome = {
+    runtime: {},
+  };
+
+  // Pass the Permissions Test.
+  const originalQuery = wn.permissions.query;
+  return wn.permissions.query = (parameters) => (
+    parameters.name === 'notifications' ?
+      Promise.resolve({ state: Notification.permission }) :
+      originalQuery(parameters)
+  );
+})(window, navigator, window.navigator);`
+
+// png/icp/err
+func (c *chrome) Run(url string) (string, string, error) {
+	buf, icp, err := c.runChromedp(url)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	filename := ".images/" + strconv.Itoa(int(time.Now().Unix())) + "_" + randString(10) + ".png"
-	err = os.WriteFile(filename, buf, 0777)
-	if err != nil {
-		fmt.Println("\r", filename, err)
-		os.Exit(1)
-		return "", err
-	}
-	return filename, nil
+	return base64.StdEncoding.EncodeToString(buf), icp, nil
 }
 
 // Init Start CTX
@@ -108,8 +123,9 @@ func (c *chrome) Cancel() {
 }
 
 // Start Sub Tabs
-func (c *chrome) runChromedp(url string) ([]byte, error) {
+func (c *chrome) runChromedp(url string) ([]byte, string, error) {
 	var buf []byte
+	var icp string
 	newContext, cancelFunc := chromedp.NewContext(c.ctx)
 	defer cancelFunc()
 	newContext, cancelFunc = context.WithTimeout(newContext, 60*time.Second)
@@ -141,47 +157,13 @@ func (c *chrome) runChromedp(url string) ([]byte, error) {
 	// new tabs
 	// chromedp.Run -> newTarget -> target.CreateTarget -> (p *CreateTargetParams) Do -> context canceled/context deadline exceeded
 	// tabs can not auto close
-	if err := chromedp.Run(newContext, captureScreenshot(url, &buf)); err != nil {
-		return []byte{}, errors.New("chromedp.Run error: " + err.Error())
+	if err := chromedp.Run(newContext, captureScreenshot(url, &icp, &buf)); err != nil {
+		return []byte{}, "", errors.New("chromedp.Run error: " + err.Error())
 	}
-	return buf, nil
+	return buf, icp, nil
 }
 
-func captureScreenshot(urlstr string, res *[]byte) chromedp.Tasks {
-	bypass_headless_detect := `(function(w, n, wn) {
-  // Pass the Webdriver Test.
-  Object.defineProperty(n, 'webdriver', {
-    get: () => false,
-  });
-
-  // Pass the Plugins Length Test.
-  // Overwrite the plugins property to use a custom getter.
-  Object.defineProperty(n, 'plugins', {
-    // This just needs to have length > 0 for the current test,
-    // but we could mock the plugins too if necessary.
-    get: () => [1, 2, 3, 4, 5],
-  });
-
-  // Pass the Languages Test.
-  // Overwrite the plugins property to use a custom getter.
-  Object.defineProperty(n, 'languages', {
-    get: () => ['en-US', 'en'],
-  });
-
-  // Pass the Chrome Test.
-  // We can mock this in as much depth as we need for the test.
-  w.chrome = {
-    runtime: {},
-  };
-
-  // Pass the Permissions Test.
-  const originalQuery = wn.permissions.query;
-  return wn.permissions.query = (parameters) => (
-    parameters.name === 'notifications' ?
-      Promise.resolve({ state: Notification.permission }) :
-      originalQuery(parameters)
-  );
-})(window, navigator, window.navigator);`
+func captureScreenshot(urlstr string, icp *string, res *[]byte) chromedp.Tasks {
 	return chromedp.Tasks{
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, err := page.AddScriptToEvaluateOnNewDocument(bypass_headless_detect).Do(ctx)
@@ -221,6 +203,19 @@ func captureScreenshot(urlstr string, res *[]byte) chromedp.Tasks {
 				return errors.New("captureScreenshot error: " + err.Error())
 			}
 			*res = buf
+			return nil
+		}),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			node, err := dom.GetDocument().Do(ctx)
+			if err != nil {
+				return err
+			}
+			body, err := dom.GetOuterHTML().WithNodeID(node.NodeID).Do(ctx)
+			if err != nil {
+				return err
+			}
+			info := utils.ICPInfo(body)
+			icp = &info
 			return nil
 		}),
 		chromedp.ActionFunc(func(ctx context.Context) error {

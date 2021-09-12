@@ -3,7 +3,7 @@ package screenshot
 import "github.com/bufsnake/httpx/config"
 
 type Screenshot interface {
-	Run(url string) (string, error)
+	Run(url string) (string, string, error)
 	InitEnv() error
 	Cancel()
 	SwitchTab()

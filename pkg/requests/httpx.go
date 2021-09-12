@@ -12,7 +12,7 @@ type httpx struct {
 	timeout   int
 	URLS      []*request
 	lock      sync.Mutex
-	log       log.Log
+	log       *log.Log
 	logerror  bool
 	allowjump bool
 }
@@ -20,14 +20,6 @@ type httpx struct {
 func (h *httpx) Run() error {
 	httpv := "http://" + h.url
 	httpvs := "https://" + h.url
-	//urlsp := strings.Split(h.url, ":")
-	//if len(urlsp) == 2 {
-	//	if urlsp[1] == "80" {
-	//		httpv = "http://" + urlsp[0]
-	//	} else if urlsp[1] == "443" {
-	//		httpvs = "https://" + urlsp[0]
-	//	}
-	//}
 	http := NewRequest(httpv, h.proxy, h.timeout, h.allowjump)
 	https := NewRequest(httpvs, h.proxy, h.timeout, h.allowjump)
 	wghttpx := sync.WaitGroup{}

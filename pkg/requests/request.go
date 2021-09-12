@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/tls"
 	"github.com/bufsnake/httpx/pkg/useragent"
+	"github.com/bufsnake/httpx/pkg/utils"
+	"github.com/grantae/certinfo"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 	"html"
@@ -26,6 +28,8 @@ type request struct {
 	http_dump   string
 	proxy       string
 	allowjump   bool
+	tls         string
+	icp         string
 }
 
 func (r *request) Run() error {
@@ -75,13 +79,24 @@ func (r *request) Run() error {
 	if err != nil {
 		r.title = ""
 	}
-	for i := 0; i < 3; i++ {
-		r.title = strings.TrimLeft(r.title, " ")
-		r.title = strings.TrimLeft(r.title, "\t")
-		r.title = strings.TrimRight(r.title, " ")
-		r.title = strings.TrimRight(r.title, "\t")
-	}
+	r.title = strings.Trim(r.title, " \t\r\n")
 	r.status_code = do.StatusCode
+	if do.TLS != nil {
+		certChain := do.TLS.PeerCertificates
+		tls_ := "================================================================== "
+		for j := 0; j < len(certChain); j++ {
+			cert := certChain[j]
+			result, err := certinfo.CertificateText(cert)
+			if err != nil {
+				continue
+			}
+			tls_ += result
+			tls_ += "================================================================== "
+		}
+		tls_ += "End"
+		r.tls = tls_
+	}
+	r.icp = utils.ICPInfo(r.http_dump)
 	return nil
 }
 
@@ -101,8 +116,16 @@ func (r *request) GetLength() int {
 	return r.length
 }
 
+func (r *request) GetTLS() string {
+	return r.tls
+}
+
 func (r *request) GetHTTPDump() string {
 	return r.http_dump
+}
+
+func (r *request) GetICP() string {
+	return r.icp
 }
 
 // 获取网站标题

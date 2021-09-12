@@ -2,11 +2,17 @@ package main
 
 import (
 	"bufio"
+	"embed"
 	"flag"
 	"fmt"
 	"github.com/bufsnake/httpx/config"
+	"github.com/bufsnake/httpx/internal/api"
 	"github.com/bufsnake/httpx/internal/core"
+	"github.com/bufsnake/httpx/internal/modelsImpl"
 	"github.com/bufsnake/httpx/pkg/log"
+	"github.com/gin-gonic/gin"
+	"io/fs"
+	"net/http"
 	"net/url"
 	"os"
 	"runtime"
@@ -32,17 +38,10 @@ func init() {
 		os.Exit(1)
 	}
 	_ = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
-
-	images := "./.images/"
-	if !exists(images) {
-		err = os.Mkdir(images, 0777)
-		if err != nil {
-			fmt.Println("create output file path error", err)
-			os.Exit(1)
-		}
-	}
-
 }
+
+//go:embed website
+var website embed.FS
 
 func main() {
 	conf := config.Terminal{}
@@ -51,7 +50,7 @@ func main() {
 	flag.IntVar(&conf.Threads, "thread", 10, "config probe thread")
 	flag.StringVar(&conf.Proxy, "proxy", "", "config probe proxy, example: http://127.0.0.1:8080")
 	flag.IntVar(&conf.Timeout, "timeout", 10, "config probe http request timeout")
-	flag.StringVar(&conf.Output, "output", time.Now().Format("200601021504")+".html", "output file name")
+	flag.StringVar(&conf.Output, "output", time.Now().Format("200601021504")+".db", "output file name")
 	flag.StringVar(&conf.URI, "uri", "", "specify uri for probe or screenshot")
 	flag.StringVar(&conf.ChromePath, "chrome-path", "", "chrome browser path")
 	flag.StringVar(&conf.HeadlessProxy, "headless-proxy", "", "chrome browser proxy")
@@ -60,7 +59,20 @@ func main() {
 	flag.BoolVar(&conf.DisplayError, "display-error", false, "display error")
 	flag.BoolVar(&conf.AllowJump, "allow-jump", false, "allow jump")
 	flag.BoolVar(&conf.Silent, "silent", false, "silent output")
+	flag.BoolVar(&conf.Server, "server", false, "server output")
 	flag.Parse()
+
+	database, err := modelsImpl.NewDatabase(conf.Output)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	err = database.InitDatabase()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
 	if conf.Proxy != "" {
 		_, err := url.Parse(conf.Proxy)
 		if err != nil {
@@ -84,6 +96,28 @@ func main() {
 				continue
 			}
 			probes[urls[i]] = true
+		}
+	} else if conf.Server {
+		website_t, err := fs.Sub(website, "website")
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		newAPI := api.NewAPI(&database)
+		engine := gin.Default()
+		engine.StaticFS("/ui", http.FS(website_t))
+		engine.NoRoute(func(c *gin.Context) {
+			c.Redirect(301, "/ui")
+		})
+		group := engine.Group("/v1")
+		group.GET("/getdatas", newAPI.GetData)
+		group.GET("/imageload", newAPI.ImageLoad)
+		group.GET("/search", newAPI.Search)
+		group.GET("/copy", newAPI.Copy)
+		err = engine.Run(":9100")
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
 		}
 	} else {
 		sc := bufio.NewScanner(os.Stdin)
@@ -121,6 +155,7 @@ func main() {
 	}
 	var p float64 = 0
 	once := true
+
 	log := log.Log{
 		Percentage: &p,
 		AllHTTP:    float64(len(probes) * 2),
@@ -128,11 +163,12 @@ func main() {
 		Once:       &once,
 		StartTime:  time.Now(),
 		Silent:     conf.Silent,
+		DB:         &database,
 	}
 	go log.Bar()
 	conf.Probes = probes
-	newCore := core.NewCore(log, conf)
-	err := newCore.Probe()
+	newCore := core.NewCore(&log, conf)
+	err = newCore.Probe()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -141,15 +177,4 @@ func main() {
 		return
 	}
 	fmt.Println()
-}
-
-func exists(path string) bool {
-	_, err := os.Stat(path) //os.Stat获取文件信息
-	if err != nil {
-		if os.IsExist(err) {
-			return true
-		}
-		return false
-	}
-	return true
 }
