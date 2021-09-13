@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm/logger"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -63,6 +64,19 @@ func (d *Database) CreateDatas(datas *[]models.Datas) error {
 func (d *Database) ReadDatas(page, flag int) (datas []models.Datas, count int64, err error) {
 	err = d.db.Model(&models.Datas{}).Where("id between ? and ?", (page-1)*flag+1, page*flag).Find(&datas).Error
 	d.db.Model(&models.Datas{}).Count(&count)
+	compile := regexp.MustCompile("Subject: .*")
+	for i := 0; i < len(datas); i++ {
+		if datas[i].TLS == "" {
+			continue
+		}
+		allstr := compile.FindAllString(datas[i].TLS, -1)
+		body := datas[i].HTTPDump
+		datas[i].HTTPDump = ""
+		for j := 0; j < len(allstr); j++ {
+			datas[i].HTTPDump += allstr[j] + "\n"
+		}
+		datas[i].HTTPDump += "\n" + body
+	}
 	return
 }
 
@@ -98,6 +112,19 @@ func (d *Database) SearchDatas(word string, page, flag int) ([]models.Datas, int
 	err := d.db.Model(&models.Datas{}).Limit(flag).Offset((page-1)*flag).Where("`url` LIKE ? or `title` LIKE ? or `httpdump` LIKE ? or `tls` LIKE ? or `icp` LIKE ?", word, word, word, word, word).Find(&datas).Error
 	var count int64
 	d.db.Model(&models.Datas{}).Where("`url` LIKE ? or `title` LIKE ? or `httpdump` LIKE ? or `tls` LIKE ? or `icp` LIKE ?", word, word, word, word, word).Count(&count)
+	compile := regexp.MustCompile("Subject: .*")
+	for i := 0; i < len(datas); i++ {
+		if datas[i].TLS == "" {
+			continue
+		}
+		allstr := compile.FindAllString(datas[i].TLS, -1)
+		body := datas[i].HTTPDump
+		datas[i].HTTPDump = ""
+		for j := 0; j < len(allstr); j++ {
+			datas[i].HTTPDump += allstr[j] + "\n"
+		}
+		datas[i].HTTPDump += "\n" + body
+	}
 	return datas, count, err
 }
 

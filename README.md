@@ -10,6 +10,12 @@ Usage of ./httpx:
     	allow jump
   -chrome-path string
     	chrome browser path
+  -cidr string
+    	cidr file, example:
+    	127.0.0.1
+    	127.0.0.5-20
+    	127.0.0.2-127.0.0.20
+    	127.0.0.1/18
   -disable-screenshot
     	disable screenshot
   -display-error
@@ -17,25 +23,29 @@ Usage of ./httpx:
   -headless-proxy string
     	chrome browser proxy
   -output string
-    	output file name (default "202109121933.db")
+    	output database file name (default "202109132330.db")
+  -path string
+    	specify request path for probe or screenshot
   -proxy string
     	config probe proxy, example: http://127.0.0.1:8080
-  -search string
-    	search string from response
   -server
-    	server output
+    	read the database by starting the web service
   -silent
     	silent output
   -target string
-    	target ip:port/scheme://ip:port
+    	single target, example:
+    	127.0.0.1
+    	127.0.0.1:8080
+    	http://127.0.0.1
   -targets string
-    	target ip:port/scheme://ip:port list file
+    	multiple goals, examlpe:
+    	127.0.0.1
+    	127.0.0.1:8080
+    	http://127.0.0.1
   -thread int
     	config probe thread (default 10)
   -timeout int
     	config probe http request timeout (default 10)
-  -uri string
-    	specify uri for probe or screenshot
 ```
 
 > example:
@@ -45,7 +55,7 @@ Usage of ./httpx:
 ```
 
 ```bash
-▶ ./httpx -target http://xxx.xxx.xxx.xxx
+▶ ./httpx -target http://127.0.0.1
 ```
 
 ```bash
@@ -53,7 +63,7 @@ Usage of ./httpx:
 ```
 
 ```bash
-▶ ./httpx -output 202109112032.db -server # 启动服务并访问 http://127.0.0.1:9100/
+▶ ./httpx -output TEST.db -server # 启动服务并访问 http://127.0.0.1:9100/
 ```
 
 ## Screenshot

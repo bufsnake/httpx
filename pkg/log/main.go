@@ -5,44 +5,32 @@ import (
 	"github.com/bufsnake/httpx/config"
 	"github.com/bufsnake/httpx/internal/models"
 	"github.com/bufsnake/httpx/internal/modelsImpl"
-	"github.com/logrusorgru/aurora"
+	. "github.com/logrusorgru/aurora"
 	"math"
-	"strings"
 	"sync"
 	"time"
 )
 
 type Log struct {
-	AllHTTP    float64    // all http request count
-	Percentage *float64   // http request percentage
-	PerLock    sync.Mutex // Percentage lock
-	Conf       config.Terminal
-	Once       *bool
-	StartTime  time.Time
-	Silent     bool
-	DB         *modelsImpl.Database
+	AllHTTP      float64    // all http request count
+	Percentage   *float64   // http request percentage
+	PerLock      sync.Mutex // Percentage lock
+	Conf         config.Terminal
+	StartTime    time.Time
+	Silent       bool
+	DB           *modelsImpl.Database
+	DisplayError bool
 }
 
-func (l *Log) Println(a ...interface{}) {
+func (l *Log) Println(StatusCode, URL, BodyLength, Title, CreateTime string) {
 	if l.Silent {
-		if len(a) == 5 {
-			switch t := a[1].(type) {
-			case string:
-				t = strings.Trim(t, "[]\x1b\x5b\x39\x37\x6d\x30 ")
-				fmt.Println(t)
-			}
-		}
+		fmt.Println("\r" + URL)
 	} else {
-		temp := make([]interface{}, 0)
-		temp = append(temp, "\r")
-		temp = append(temp, a...)
-		temp = append(temp, "                ")
-		fmt.Println(temp...)
-		l.percentage()
+		fmt.Println(fmt.Sprintf("%-150s", "\r["+BrightGreen(StatusCode).String()+"] ["+BrightWhite(URL).String()+"] ["+BrightRed(BodyLength).String()+"] ["+BrightCyan(Title).String()+"] ["+BrightBlue(CreateTime).String()+"]"))
 	}
 }
 
-func (l *Log) OutputHTML(data models.Datas) {
+func (l *Log) SaveData(data models.Datas) {
 	// TODO: 入库
 	err := l.DB.CreateDatas(&[]models.Datas{data})
 	if err != nil {
@@ -58,7 +46,7 @@ func (l *Log) Bar() {
 	}
 	for {
 		percentage := math.Trunc((((*l.Percentage)/l.AllHTTP)*100)*1e2) * 1e-2
-		fmt.Printf("\r %s: %.2f%% %s: %s %s: %.2fs", aurora.BrightWhite("Percentage").String(), percentage, aurora.BrightWhite("Output").String(), l.Conf.Output, aurora.BrightWhite("Time").String(), time.Now().Sub(l.StartTime).Seconds())
+		fmt.Printf("\r%s: %.2f%% %s: %s %s: %.2fs", BrightWhite("Percentage").String(), percentage, BrightWhite("Output").String(), l.Conf.Output, BrightWhite("Time").String(), time.Now().Sub(l.StartTime).Seconds())
 		time.Sleep(1 * time.Second / 10)
 	}
 }
@@ -68,7 +56,7 @@ func (l *Log) percentage() {
 		return
 	}
 	percentage := math.Trunc((((*l.Percentage)/l.AllHTTP)*100)*1e2) * 1e-2
-	fmt.Printf("\r %s: %.2f%% %s: %s %s: %.2fs", aurora.BrightWhite("Percentage").String(), percentage, aurora.BrightWhite("Output").String(), l.Conf.Output, aurora.BrightWhite("Time").String(), time.Now().Sub(l.StartTime).Seconds())
+	fmt.Printf("\r%s: %.2f%% %s: %s %s: %.2fs", BrightWhite("Percentage").String(), percentage, BrightWhite("Output").String(), l.Conf.Output, BrightWhite("Time").String(), time.Now().Sub(l.StartTime).Seconds())
 }
 
 func (l *Log) PercentageAdd() {
@@ -79,4 +67,11 @@ func (l *Log) PercentageAdd() {
 	defer l.PerLock.Unlock()
 	*l.Percentage++
 	l.percentage()
+}
+
+func (l *Log) Error(a ...interface{}) {
+	if !l.DisplayError {
+		return
+	}
+	fmt.Println(a...)
 }

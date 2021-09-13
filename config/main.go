@@ -11,11 +11,11 @@ type Terminal struct {
 	Timeout           int             // http request timeout
 	ChromePath        string          // screenshot chrome path
 	Output            string          // output file，default .html
-	URI               string          // URL URI
+	Path              string          // URL Path
 	DisableScreenshot bool            // disable screenshot
-	Search            string          // search string from body TODO: support query dsl
 	DisplayError      bool            // Show error
 	AllowJump         bool            // allow jump
 	Silent            bool            // silent model
 	Server            bool            // server model
+	CIDR              string          // CIDR file
 }
