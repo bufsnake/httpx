@@ -35,7 +35,12 @@ func (c *Core) Probe() error {
 		urlwait.Add(1)
 		go c.routine(&urlwait, urlchan, ss)
 	}
+	c.conf.ProbesL.Lock()
+	defer c.conf.ProbesL.Unlock()
 	for url, _ := range c.conf.Probes {
+		if *c.conf.Stop {
+			break
+		}
 		urlchan <- url
 		delete(c.conf.Probes, url)
 	}

@@ -198,9 +198,18 @@ func main() {
 
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt)
+
+	stop := false
+	conf.Stop = &stop
+
+	// error: concurrent map iteration and map write
+	// Stop Flag
 	go func() {
 		select {
 		case _ = <-c:
+			*conf.Stop = true
+			conf.ProbesL.Lock()
+			defer conf.ProbesL.Unlock()
 			output := ""
 			for un, _ := range conf.Probes {
 				output += un + "\n"

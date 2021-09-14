@@ -1,5 +1,7 @@
 package config
 
+import "sync"
+
 // terminal options
 type Terminal struct {
 	Probes            map[string]bool // all probe data
@@ -18,4 +20,6 @@ type Terminal struct {
 	Silent            bool            // silent model
 	Server            bool            // server model
 	CIDR              string          // CIDR file
+	Stop              *bool
+	ProbesL           sync.Mutex
 }

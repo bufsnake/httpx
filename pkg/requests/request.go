@@ -3,6 +3,7 @@ package requests
 import (
 	"bytes"
 	"crypto/tls"
+	"errors"
 	"github.com/bufsnake/httpx/pkg/useragent"
 	"github.com/bufsnake/httpx/pkg/utils"
 	"github.com/grantae/certinfo"
@@ -87,6 +88,10 @@ func (r *request) Run() error {
 		if err == nil {
 			r.http_dump = string(resp)
 		}
+	}
+
+	if r.title == "400 The plain HTTP request was sent to HTTPS port" {
+		return errors.New("response title is '400 The plain HTTP request was sent to HTTPS port'")
 	}
 
 	r.status_code = do.StatusCode
