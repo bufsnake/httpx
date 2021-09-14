@@ -75,11 +75,20 @@ func (r *request) Run() error {
 		return err
 	}
 	r.length = len(body)
-	r.title, err = extracttitle(string(body))
+	var convert bool
+	r.title, convert, err = extracttitle(string(body))
 	if err != nil {
 		r.title = ""
 	}
 	r.title = strings.Trim(r.title, " \t\r\n")
+	if convert {
+		reader := transform.NewReader(bytes.NewReader(resp), simplifiedchinese.GBK.NewDecoder())
+		resp, err = ioutil.ReadAll(reader)
+		if err == nil {
+			r.http_dump = string(resp)
+		}
+	}
+
 	r.status_code = do.StatusCode
 	if do.TLS != nil {
 		certChain := do.TLS.PeerCertificates
@@ -128,8 +137,8 @@ func (r *request) GetICP() string {
 	return r.icp
 }
 
-// 获取网站标题
-func extracttitle(body string) (string, error) {
+// 获取网站标题 - ret title,是否转换,error
+func extracttitle(body string) (string, bool, error) {
 	title := ""
 	var re = regexp.MustCompile(`(?im)<\s*title.*>(.*?)<\s*/\s*title>`)
 	for _, match := range re.FindAllString(body, -1) {
@@ -140,11 +149,11 @@ func extracttitle(body string) (string, error) {
 		reader := transform.NewReader(bytes.NewReader([]byte(title)), simplifiedchinese.GBK.NewDecoder())
 		d, err := ioutil.ReadAll(reader)
 		if err != nil {
-			return title, err
+			return title, false, err
 		}
-		return string(d), nil
+		return string(d), true, nil
 	}
-	return title, nil
+	return title, false, nil
 }
 
 func trimTitleTags(title string) string {
