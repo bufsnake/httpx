@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
+	"github.com/bufsnake/httpx/config"
+	"github.com/bufsnake/httpx/pkg/log"
 	"github.com/bufsnake/httpx/pkg/useragent"
 	"github.com/bufsnake/httpx/pkg/utils"
 	"github.com/grantae/certinfo"
@@ -25,19 +27,18 @@ type request struct {
 	status_code int
 	title       string
 	length      int
-	timeout     int
 	http_dump   string
-	proxy       string
-	allowjump   bool
 	tls         string
 	icp         string
+	conf        *config.Terminal
+	l           *log.Log
 }
 
 func (r *request) Run() error {
 	cli := http.Client{
-		Timeout: time.Duration(r.timeout) * time.Second,
+		Timeout: time.Duration(r.conf.Timeout) * time.Second,
 	}
-	if !r.allowjump {
+	if !r.conf.AllowJump {
 		cli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
@@ -48,9 +49,9 @@ func (r *request) Run() error {
 		},
 		DisableKeepAlives: true,
 	}
-	if r.proxy != "" {
+	if r.conf.Proxy != "" {
 		proxy := func(_ *http.Request) (*url.URL, error) {
-			return url.Parse(r.proxy)
+			return url.Parse(r.conf.Proxy)
 		}
 		transport.Proxy = proxy
 	}
@@ -60,6 +61,7 @@ func (r *request) Run() error {
 		return err
 	}
 	req.Header.Set("User-Agent", useragent.RandomUserAgent())
+	req.Header.Set("Cookie", "rememberMe=Lisan")
 	req.Header.Set("Connection", "close")
 	do, err := cli.Do(req)
 	if err != nil {

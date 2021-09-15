@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bufsnake/httpx/config"
+	"github.com/bufsnake/httpx/pkg/log"
 	"github.com/bufsnake/httpx/pkg/useragent"
 	"github.com/bufsnake/httpx/pkg/utils"
 	"github.com/chromedp/cdproto/cdp"
@@ -15,8 +16,6 @@ import (
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"strings"
-
-	//	log2 "log"
 	"time"
 )
 
@@ -24,7 +23,8 @@ type chrome struct {
 	timeout int
 	ctx     context.Context
 	cancel  context.CancelFunc
-	conf_   config.Terminal
+	conf_   *config.Terminal
+	l       *log.Log
 }
 
 var bypass_headless_detect = `(function(w, n, wn) {
@@ -142,7 +142,7 @@ func (c *chrome) runChromedp(url string) ([]byte, string, error) {
 			t := page.HandleJavaScriptDialog(false)
 			go func() {
 				if err := chromedp.Run(newContext, t); err != nil {
-					fmt.Println(errors.New("\nrunChromedp error: " + err.Error()))
+					c.l.Error(errors.New("\nrunChromedp error: " + err.Error()))
 				}
 			}()
 		}

@@ -24,7 +24,7 @@ func NewCore(l *log.Log, c config.Terminal) Core {
 func (c *Core) Probe() error {
 	urlchan := make(chan string, c.conf.Threads)
 	urlwait := sync.WaitGroup{}
-	ss := screenshot.NewScreenShot(c.conf)
+	ss := screenshot.NewScreenShot(&c.conf, c.log)
 	err := ss.InitEnv()
 	if err != nil {
 		return err
@@ -52,7 +52,7 @@ func (c *Core) Probe() error {
 func (c *Core) routine(w *sync.WaitGroup, u chan string, screen_shot screenshot.Screenshot) {
 	defer w.Done()
 	for t := range u {
-		httpx := requests.NewHttpx(strings.Trim(t, "/")+"/"+strings.TrimLeft(c.conf.Path, "/"), c.conf.Proxy, c.conf.Timeout, c.log, c.conf.DisplayError, c.conf.AllowJump)
+		httpx := requests.NewHttpx(strings.Trim(t, "/")+"/"+strings.TrimLeft(c.conf.Path, "/"), &c.conf, c.log)
 		err := httpx.Run()
 		if err != nil {
 			c.log.Error(err)

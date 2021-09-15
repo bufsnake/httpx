@@ -1,11 +1,14 @@
 package requests
 
-import "github.com/bufsnake/httpx/pkg/log"
+import (
+	"github.com/bufsnake/httpx/config"
+	"github.com/bufsnake/httpx/pkg/log"
+)
 
-func NewHttpx(url, proxy string, timeout int, l *log.Log, logerror, allowjump bool) *httpx {
-	return &httpx{url: url, proxy: proxy, timeout: timeout, log: l, logerror: logerror, allowjump: allowjump}
+func NewHttpx(url string, conf *config.Terminal, l *log.Log) *httpx {
+	return &httpx{url: url, conf: conf, l: l}
 }
 
-func NewRequest(url, proxy string, timeout int, allowjump bool) *request {
-	return &request{url: url, proxy: proxy, timeout: timeout, allowjump: allowjump}
+func NewRequest(url string, conf *config.Terminal, l *log.Log) *request {
+	return &request{url: url, conf: conf, l: l}
 }
