@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -204,9 +205,12 @@ func main() {
 
 	// error: concurrent map iteration and map write
 	// Stop Flag
+	wait := sync.WaitGroup{}
 	go func() {
 		select {
 		case _ = <-c:
+			wait.Add(1)
+			defer wait.Done()
 			*conf.Stop = true
 			conf.ProbesL.Lock()
 			defer conf.ProbesL.Unlock()
@@ -228,4 +232,5 @@ func main() {
 	if !l.Silent {
 		fmt.Println()
 	}
+	wait.Wait()
 }
