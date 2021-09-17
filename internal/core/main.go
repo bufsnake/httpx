@@ -77,7 +77,7 @@ func (c *Core) routine(w *sync.WaitGroup, u chan string, screen_shot screenshot.
 					run string
 					icp string
 				)
-				run, icp, err = screen_shot.Run(strings.Trim(httpx.URLS[j].GetUrl(), "/") + "/" + strings.TrimLeft(c.conf.Path, "/"))
+				run, icp, err = screen_shot.Run(httpx.URLS[j].GetUrl())
 				if err != nil {
 					c.log.Error(err)
 				} else {
