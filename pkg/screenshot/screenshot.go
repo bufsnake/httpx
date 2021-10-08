@@ -3,6 +3,7 @@ package screenshot
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/bufsnake/httpx/config"
@@ -11,11 +12,15 @@ import (
 	"github.com/bufsnake/httpx/pkg/utils"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/dom"
+	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -63,12 +68,12 @@ var bypass_headless_detect = `(function(w, n, wn) {
 })(window, navigator, window.navigator);`
 
 // png/icp/err
-func (c *chrome) Run(url string) (string, string, error) {
-	buf, icp, err := c.runChromedp(url)
+func (c *chrome) Run(url string) (string, string, string, map[string]bool, error) {
+	buf, icp, title, reqs, err := c.runChromedp(url)
 	if err != nil {
-		return "", "", err
+		return "", "", "", nil, err
 	}
-	return base64.StdEncoding.EncodeToString(buf), icp, nil
+	return base64.StdEncoding.EncodeToString(buf), icp, title, reqs, nil
 }
 
 // Init Start CTX
@@ -102,18 +107,31 @@ func (c *chrome) InitEnv() error {
 
 // switch tabs, auto close tab
 func (c *chrome) SwitchTab() {
+	targets_ := make(map[target.ID]time.Time)
 	for {
 		targets, err := chromedp.Targets(c.ctx)
 		if err != nil {
+			c.l.Error(err)
 			continue
 		}
+		c.l.SetNumberOfTabs(len(targets))
 		for i := 0; i < len(targets); i++ {
+			if _, ok := targets_[targets[i].TargetID]; !ok {
+				targets_[targets[i].TargetID] = time.Now()
+			}
 			err = target.ActivateTarget(targets[i].TargetID).Do(cdp.WithExecutor(c.ctx, chromedp.FromContext(c.ctx).Browser))
 			if err != nil {
+				c.l.Error(err)
 				continue
 			}
+			if time.Now().Sub(targets_[targets[i].TargetID]).Seconds() >= float64(30*time.Second) {
+				err = target.CloseTarget(targets[i].TargetID).Do(cdp.WithExecutor(c.ctx, chromedp.FromContext(c.ctx).Browser))
+				if err != nil {
+					c.l.Error(err)
+				}
+			}
 		}
-		time.Sleep(3 * time.Second)
+		time.Sleep(1 * time.Second / 5)
 	}
 }
 
@@ -122,50 +140,127 @@ func (c *chrome) Cancel() {
 	defer c.cancel()
 }
 
-// Start Sub Tabs
-func (c *chrome) runChromedp(url string) ([]byte, string, error) {
-	var buf []byte
-	var icp string
-	newContext, cancelFunc := chromedp.NewContext(c.ctx)
-	defer cancelFunc()
-	newContext, cancelFunc = context.WithTimeout(newContext, 60*time.Second)
-	defer cancelFunc()
-	chromedp.ListenTarget(newContext, func(ev interface{}) {
-		// JS Dialog
-		if _, ok := ev.(*page.EventJavascriptDialogOpening); ok {
-			/*
-				2021/06/02 01:04:13 <- {"method":"Log.entryAdded","params":{"entry":{"source":"network","level":"error","text":"Failed to load resource: the server responded with a status of 401 (Unauthorized)","timestamp":1.6225670530905408e+12,"url":"http://42.192.77.89:9200/v1/","networkRequestId":"57902.19"}},"sessionId":"D5B25250902223AE0FD9918AE16CB241"}
-				2021/06/02 01:04:13 <- {"method":"Page.javascriptDialogOpening","params":{"url":"http://42.192.77.89:9200/#/","message":"Error: Request failed with status code 401","type":"alert","hasBrowserHandler":false,"defaultPrompt":""},"sessionId":"D5B25250902223AE0FD9918AE16CB241"}
-				2021/06/02 01:04:16 -> {"id":30,"sessionId":"D5B25250902223AE0FD9918AE16CB241","method":"Page.captureScreenshot","params":{"format":"png","quality":100,"clip":{"x":0,"y":0,"width":1920,"height":1080,"scale":1},"fromSurface":true,"captureBeyondViewport":true}}
-			*/
+// 获取
+func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[string]bool, lock_ *sync.Mutex, responseId *map[network.RequestID]bool) func(ev interface{}) {
+	return func(ev interface{}) {
+		switch e := ev.(type) {
+		case *network.EventRequestWillBeSent:
+			if !c.conf_.GetPath && !c.conf_.GetUrl {
+				return
+			}
+			if !strings.HasPrefix(e.Request.URL, "http") {
+				return
+			}
+			lock.Lock()
+			request[e.Request.URL] = true
+			lock.Unlock()
+		case *network.EventResponseReceived:
+			if !c.conf_.GetPath && !c.conf_.GetUrl {
+				return
+			}
+			if !strings.HasPrefix(e.Response.URL, "http") {
+				return
+			}
+			// 获取requestId
+			lock_.Lock()
+			(*responseId)[e.RequestID] = true
+			lock_.Unlock()
+		case *runtime.EventConsoleAPICalled:
+			if !c.conf_.GetPath && !c.conf_.GetUrl {
+				return
+			}
+			for i := 0; i < len(e.Args); i++ {
+				var val string
+				err := json.Unmarshal(e.Args[i].Value, &val)
+				if err != nil {
+					c.l.Error(err)
+					continue
+				}
+				if strings.HasPrefix(val, "bufsnake") {
+					split := strings.Split(val, "bufsnake ")
+					if len(split) == 2 && strings.HasPrefix(split[1], "http") {
+						lock.Lock()
+						request[split[1]] = true
+						lock.Unlock()
+					}
+				}
+			}
+		case *fetch.EventRequestPaused:
+			if len(c.conf_.Headers) == 0 {
+				return
+			}
+			// Add Headers
+			// Can Not Set Host Header
+			go func() {
+				err := fetch.ContinueRequest(e.RequestID).WithURL(e.Request.URL).WithHeaders(c.conf_.Headers).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
+				if err != nil {
+					c.l.Error(err)
+				}
+			}()
+		case *page.EventJavascriptDialogOpening:
 			// Disable JavaScriptDialog
+			// chrome IWA 不影响截图
 			t := page.HandleJavaScriptDialog(false)
 			go func() {
-				if err := chromedp.Run(newContext, t); err != nil {
+				if err := chromedp.Run(ctx, t); err != nil {
 					c.l.Error(errors.New("\nrunChromedp error: " + err.Error()))
 				}
 			}()
 		}
-		// chrome IWA
-		// 不影响截图
-		if _, ok := ev.(*network.EventResponseReceived); ok {
-			//if ev.(*network.EventResponseReceived).Response.Headers["Www-Authenticate"] != nil {
-			//	fmt.Println(ev.(*network.EventResponseReceived).Response.Headers["Www-Authenticate"])
-			//}
-		}
-	})
+	}
+}
+
+// Start Sub Tabs png/icp/title/req-url
+func (c *chrome) runChromedp(url string) ([]byte, string, string, map[string]bool, error) {
+	var buf []byte
+	var icp string
+	var title string
+	requestURL := make(map[string]bool)        // 打开网页请求的URL
+	jsfinder_href_src := make(map[string]bool) // JSFinder、SRC/HREF 获取的URL
+	lock := sync.Mutex{}
+	requestId := make(map[network.RequestID]bool)
+	lock_ := sync.Mutex{}
+	newContext, cancelFunc := chromedp.NewContext(c.ctx)
+	defer cancelFunc()
+	newContext, cancelFunc = context.WithTimeout(newContext, 30*time.Second)
+	defer cancelFunc()
+	chromedp.ListenTarget(newContext, c.listen(newContext, &lock, requestURL, &lock_, &requestId))
 	// new tabs
 	// chromedp.Run -> newTarget -> target.CreateTarget -> (p *CreateTargetParams) Do -> context canceled/context deadline exceeded
 	// tabs can not auto close
-	if err := chromedp.Run(newContext, captureScreenshot(url, &icp, &buf)); err != nil {
-		return []byte{}, "", errors.New("chromedp.Run error: " + err.Error())
+	if err := chromedp.Run(newContext, c.screenshot(url, &icp, &buf, &title, &lock_, &requestId, &jsfinder_href_src)); err != nil {
+		return []byte{}, "", "", requestURL, errors.New("chromedp.Run error: " + err.Error())
 	}
-	return buf, icp, nil
+	lock.Lock()
+	defer lock.Unlock()
+	for urlstr, _ := range jsfinder_href_src {
+		requestURL[urlstr] = true
+	}
+	return buf, icp, title, requestURL, nil
 }
 
-func captureScreenshot(urlstr string, icp *string, res *[]byte) chromedp.Tasks {
+func (c *chrome) screenshot(urlstr string, icp *string, res *[]byte, title *string, lock_ *sync.Mutex, responseId *map[network.RequestID]bool, resq *map[string]bool) chromedp.Tasks {
 	return chromedp.Tasks{
 		chromedp.ActionFunc(func(ctx context.Context) error {
+			if len(c.conf_.Headers) > 0 {
+				err := fetch.Enable().Do(ctx)
+				if err != nil {
+					return err
+				}
+				// 同样也不能修改host头
+				//err := network.Enable().Do(ctx)
+				//if err != nil {
+				//	return err
+				//}
+				//m := make(map[string]interface{})
+				//for i := 0; i < len(c.conf_.Headers); i++ {
+				//	m[c.conf_.Headers[i].Name] = c.conf_.Headers[i].Value
+				//}
+				//err = network.SetExtraHTTPHeaders(m).Do(ctx)
+				//if err != nil {
+				//	return err
+				//}
+			}
 			_, err := page.AddScriptToEvaluateOnNewDocument(bypass_headless_detect).Do(ctx)
 			if err != nil {
 				return errors.New(fmt.Sprintf("AddScriptToEvaluateOnNewDocument %s", err))
@@ -174,13 +269,11 @@ func captureScreenshot(urlstr string, icp *string, res *[]byte) chromedp.Tasks {
 			if err != nil {
 				// 401 验证问题
 				if !strings.Contains(err.Error(), "page load error net::ERR_INVALID_AUTH_CREDENTIALS") {
-					// statuscode = 30x, close table
-					// tab从右往左进行关闭 context deadline exceeded 就是因为这个
 					errs := target.CloseTarget(chromedp.FromContext(ctx).Target.TargetID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Browser))
 					if errs != nil {
 						return errors.New(fmt.Sprintf("Navigate CloseTarget %s", err))
 					}
-					return err
+					return errors.New(fmt.Sprintf("Navigate Target Error %s", err))
 				}
 			}
 			return nil
@@ -218,6 +311,56 @@ func captureScreenshot(urlstr string, icp *string, res *[]byte) chromedp.Tasks {
 			icp = &info
 			return nil
 		}),
+		chromedp.Title(title),
+		// 获取JSFinder
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			if !c.conf_.GetPath && !c.conf_.GetUrl {
+				return nil
+			}
+			for ri, _ := range *responseId {
+				body, err := network.GetResponseBody(ri).Do(ctx)
+				if err != nil {
+					c.l.Error(err)
+					continue
+				}
+				compile := regexp.MustCompile(`(?:"|')(((?:[a-zA-Z]{1,10}://|//)[^"'/]{1,}\.[a-zA-Z]{2,}[^"']{0,})|((?:/|\.\./|\./)[^"'><,;| *()(%%$^/\\\[\]][^"'><,;|()]{1,})|([a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{1,}\.(?:[a-zA-Z]{1,4}|action)(?:[\?|/][^"|']{0,}|))|([a-zA-Z0-9_\-]{1,}\.(?:php|asp|aspx|jsp|json|action|html|js|txt|xml)(?:\?[^"|']{0,}|)))(?:"|')`)
+				all := compile.FindAll(body, -1)
+				for i := 0; i < len(all); i++ {
+					url_ := strings.Trim(string(all[i]), " '\",;{}[]()`?")
+					if strings.HasPrefix(url_, "http") {
+						lock_.Lock()
+						(*resq)[url_] = true
+						lock_.Unlock()
+					}
+				}
+			}
+			return nil
+		}),
+		// 执行JavaScript Get Page Href/Src
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			if !c.conf_.GetPath && !c.conf_.GetUrl {
+				return nil
+			}
+			_, _, err := runtime.Evaluate(`
+function cycle(a) {
+    for (var i = 0; i < a.children.length; i++) {
+        if (a.children[i].href !== undefined && a.children[i].href !== "" && a.children[i].href !== null) {
+            console.log("bufsnake " + a.children[i].href);
+        }
+        if (a.children[i].src !== undefined && a.children[i].src !== "" && a.children[i].src !== null) {
+            console.log("bufsnake " + a.children[i].src);
+        }
+        if (a.children[i].action !== undefined && a.children[i].action !== "" && a.children[i].action !== null) {
+            console.log("bufsnake " + a.children[i].action);
+        }
+        cycle(a.children[i]);
+    }
+}
+cycle(document.documentElement);
+`).Do(ctx)
+			return err
+		}),
+		chromedp.Sleep(time.Second),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			// tab从右往左进行关闭 context deadline exceeded 就是因为这个
 			err := target.CloseTarget(chromedp.FromContext(ctx).Target.TargetID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Browser))

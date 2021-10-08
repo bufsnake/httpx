@@ -63,6 +63,13 @@ func (r *request) Run() error {
 	req.Header.Set("User-Agent", useragent.RandomUserAgent())
 	req.Header.Set("Cookie", "rememberMe=Lisan")
 	req.Header.Set("Connection", "close")
+	for i := 0; i < len(r.conf.Headers); i++ {
+		if strings.ToUpper(r.conf.Headers[i].Name) == "HOST" {
+			req.Host = r.conf.Headers[i].Value
+			continue
+		}
+		req.Header.Set(r.conf.Headers[i].Name, r.conf.Headers[i].Value)
+	}
 	do, err := cli.Do(req)
 	if err != nil {
 		return err
@@ -93,6 +100,12 @@ func (r *request) Run() error {
 	}
 
 	if r.title == "400 The plain HTTP request was sent to HTTPS port" {
+		return errors.New("response title is '400 The plain HTTP request was sent to HTTPS port'")
+	}
+	if r.title == "400 No required SSL certificate was sent" {
+		return errors.New("response title is '400 The plain HTTP request was sent to HTTPS port'")
+	}
+	if strings.Contains(r.http_dump, "This combination of host and port requires TLS.") {
 		return errors.New("response title is '400 The plain HTTP request was sent to HTTPS port'")
 	}
 

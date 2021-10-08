@@ -12,14 +12,20 @@ import (
 )
 
 type Log struct {
-	AllHTTP      float64    // all http request count
-	Percentage   *float64   // http request percentage
-	PerLock      sync.Mutex // Percentage lock
-	Conf         config.Terminal
-	StartTime    time.Time
-	Silent       bool
-	DB           *modelsImpl.Database
-	DisplayError bool
+	AllHTTP        float64 // all http request count
+	NumberOfAssets int
+	Percentage     *float64   // http request percentage
+	PerLock        sync.Mutex // Percentage lock
+	Conf           *config.Terminal
+	StartTime      time.Time
+	Silent         bool
+	DB             *modelsImpl.Database
+	DisplayError   bool
+	numberOfTabs   int
+}
+
+func (l *Log) SetNumberOfTabs(count int) {
+	l.numberOfTabs = count
 }
 
 func (l *Log) Println(StatusCode, URL, BodyLength, Title, CreateTime string) {
@@ -41,12 +47,8 @@ func (l *Log) SaveData(data models.Datas) {
 }
 
 func (l *Log) Bar() {
-	if l.Silent {
-		return
-	}
 	for {
-		percentage := math.Trunc((((*l.Percentage)/l.AllHTTP)*100)*1e2) * 1e-2
-		fmt.Printf("\r%s: %.2f%% %s: %s %s: %.2fs", BrightWhite("Percentage").String(), percentage, BrightWhite("Output").String(), l.Conf.Output, BrightWhite("Time").String(), time.Now().Sub(l.StartTime).Seconds())
+		l.percentage()
 		time.Sleep(1 * time.Second / 10)
 	}
 }
@@ -56,7 +58,11 @@ func (l *Log) percentage() {
 		return
 	}
 	percentage := math.Trunc((((*l.Percentage)/l.AllHTTP)*100)*1e2) * 1e-2
-	fmt.Printf("\r%s: %.2f%% %s: %s %s: %.2fs", BrightWhite("Percentage").String(), percentage, BrightWhite("Output").String(), l.Conf.Output, BrightWhite("Time").String(), time.Now().Sub(l.StartTime).Seconds())
+	if *l.Conf.Stop {
+		fmt.Printf("\r%s: %d %s: %d %s: %.2f%% %s: %s %s: %.2fs Wait To Stop...", BrightWhite("NumberOfTabs").String(), l.numberOfTabs, BrightWhite("NumberOfAssets").String(), l.NumberOfAssets, BrightWhite("Percentage").String(), percentage, BrightWhite("Output").String(), l.Conf.Output, BrightWhite("Time").String(), time.Now().Sub(l.StartTime).Seconds())
+		return
+	}
+	fmt.Printf("\r%s: %d %s: %d %s: %.2f%% %s: %s %s: %.2fs", BrightWhite("NumberOfTabs").String(), l.numberOfTabs, BrightWhite("NumberOfAssets").String(), l.NumberOfAssets, BrightWhite("Percentage").String(), percentage, BrightWhite("Output").String(), l.Conf.Output, BrightWhite("Time").String(), time.Now().Sub(l.StartTime).Seconds())
 }
 
 func (l *Log) PercentageAdd() {

@@ -11,8 +11,10 @@
     "ant-design-vue": "^1.6.2",
     "axios": "^0.21.4",
     "core-js": "^3.6.4",
+    "js-base64": "^3.7.1",
     "vue": "^2.6.11",
-    "vue-clipboard2": "^0.3.1"
+    "vue-clipboard2": "^0.3.1",
+    "vue-file-base64": "^1.0.2"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "~4.2.0",

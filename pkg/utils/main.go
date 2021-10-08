@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"github.com/bufsnake/parseip"
 	"regexp"
 	"strings"
 )
@@ -18,4 +19,23 @@ func ICPInfo(data string) string {
 		}
 	}
 	return strings.Trim(icp_data, "|")
+}
+
+func IsDomain(data string) bool {
+	if matched, _ := regexp.MatchString("\\d{0,3}\\.\\d{0,3}\\.\\d{0,3}\\.\\d{0,3}", data); matched {
+		// 获取host部分
+		host := strings.ReplaceAll(strings.ReplaceAll(data, "http://", ""), "https://", "")
+		if strings.Contains(host, "/") {
+			host = strings.Split(host, "/")[0]
+		}
+		if strings.Contains(host, ":") {
+			host = strings.Split(host, ":")[0]
+		}
+		_, _, err := parseip.ParseIP(host)
+		if err != nil {
+			return true
+		}
+		return false
+	}
+	return true
 }

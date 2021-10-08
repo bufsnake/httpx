@@ -6,7 +6,7 @@ import (
 )
 
 type Screenshot interface {
-	Run(url string) (string, string, error)
+	Run(url string) (string, string, string, map[string]bool, error)
 	InitEnv() error
 	Cancel()
 	SwitchTab()
