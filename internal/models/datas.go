@@ -10,7 +10,7 @@ type Datas struct {
 	CreateTime string `json:"createtime" gorm:"column:createtime"`
 	Image      string `json:"image" gorm:"column:image;type:LONGTEXT"`
 	HTTPDump   string `json:"httpdump" gorm:"column:body;type:LONGTEXT"`
-	TLS        string `json:"tls" gorm:"column:tls"`
+	TLS        string `json:"tls" gorm:"column:tls;type:LONGTEXT"`
 	ICP        string `json:"icp" gorm:"column:icp"`
 }
 

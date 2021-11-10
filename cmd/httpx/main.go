@@ -216,6 +216,9 @@ func main() {
 			if temp.Path == "" {
 				temp.Path = "/"
 			}
+			if temp.RawQuery != "" {
+				temp.Path = temp.Path + "?" + temp.RawQuery
+			}
 			temp_probes[temp.Host][temp.Path] = true
 		}
 		probes = temp_probes
