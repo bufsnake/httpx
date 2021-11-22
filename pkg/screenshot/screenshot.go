@@ -191,8 +191,16 @@ func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[strin
 			}
 			// Add Headers
 			// Can Not Set Host Header
+			if !c.conf_.IsExist(e.Request.URL) {
+				return
+			}
 			go func() {
-				err := fetch.ContinueRequest(e.RequestID).WithURL(e.Request.URL).WithHeaders(c.conf_.Headers).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
+				err := fetch.ContinueRequest(e.RequestID).
+					WithURL(e.Request.URL).
+					WithMethod(c.conf_.Method).
+					WithPostData(base64.StdEncoding.EncodeToString([]byte(c.conf_.Data))). // If set, overrides the post data in the request. (Encoded as a base64 string when passed over JSON)
+					WithHeaders(c.conf_.Headers).
+					Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
 				if err != nil {
 					c.l.Error(err)
 				}

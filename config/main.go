@@ -35,6 +35,25 @@ type Terminal struct {
 	Data              string // 请求体
 	Rebuild           bool   // 重新生成datas表
 	OutOfRange        map[string]bool
+
+	// 保存资产清单
+	AssetsL sync.Mutex
+	Assets  map[string]bool
+}
+
+func (c *Terminal) AddAssets(url string) {
+	c.AssetsL.Lock()
+	defer c.AssetsL.Unlock()
+	c.Assets[url] = true
+}
+
+func (c *Terminal) IsExist(url string) bool {
+	c.AssetsL.Lock()
+	defer c.AssetsL.Unlock()
+	if _, ok := c.Assets[url]; !ok {
+		return false
+	}
+	return true
 }
 
 type Ports []string

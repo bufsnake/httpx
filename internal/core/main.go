@@ -130,20 +130,29 @@ func (c *Core) Probe() error {
 func parsePath(host, path string) map[string]bool {
 	reqs := make(map[string]bool)
 	subpaths := strings.Split(path, "/")
+	paths_ := make([]string, 0)
 	for i := 0; i < len(subpaths); i++ {
-		if subpaths[i] == "" || strings.Contains(subpaths[i], ".") {
+		if len(strings.Trim(subpaths[i], " \\")) == 0 {
 			continue
 		}
-		subpath := "/"
-		for j := 0; j <= i; j++ {
-			if subpaths[j] == "" || strings.Contains(subpaths[j], ".") {
-				continue
-			}
-			subpath += subpaths[j] + "/"
-		}
-		reqs[host+subpath] = true
+		paths_ = append(paths_, strings.Trim(subpaths[i], " \\"))
 	}
+	subpaths = paths_
+	reqs[host+"/"] = true
+	pathsFunc(host, subpaths, 0, &reqs)
 	return reqs
+}
+
+func pathsFunc(host string, path []string, index int, reqs *map[string]bool) {
+	if index == len(path) {
+		return
+	}
+	if strings.Contains(path[index], ".") && index == len(path)-1 {
+		return
+	}
+	(*reqs)[host+"/"+strings.Join(path[:index+1], "/")+"/"] = true
+	index++
+	pathsFunc(host, path, index, reqs)
 }
 
 func (c *Core) routine(w *sync.WaitGroup, u chan [2]string, datas chan models.Datas) {

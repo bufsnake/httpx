@@ -56,12 +56,27 @@ func (r *request) Run() error {
 		transport.Proxy = proxy
 	}
 	cli.Transport = &transport
-	req, err := http.NewRequest("GET", r.url, nil)
+	methods := []string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodConnect, http.MethodOptions, http.MethodTrace}
+
+	r.conf.Method = strings.ToUpper(r.conf.Method)
+	if !strings.Contains(strings.Join(methods, " "), r.conf.Method) {
+		return errors.New("unsupport method " + r.conf.Method)
+	}
+
+	body_data := strings.NewReader("")
+	if r.conf.Data != "" {
+		body_data = strings.NewReader(r.conf.Data)
+	}
+
+	r.conf.AddAssets(r.url)
+
+	req, err := http.NewRequest(r.conf.Method, r.url, body_data)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("User-Agent", useragent.RandomUserAgent())
 	req.Header.Set("Cookie", "rememberMe=Lisan")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Connection", "close")
 	for i := 0; i < len(r.conf.Headers); i++ {
 		if strings.ToUpper(r.conf.Headers[i].Name) == "HOST" {

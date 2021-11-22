@@ -50,6 +50,13 @@ var website embed.FS
 
 func main() {
 	conf := config.Terminal{}
+	conf.Assets = make(map[string]bool)
+	// default content-type
+	err := conf.Header.Set("Content-Type: application/x-www-form-urlencoded")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	flag.StringVar(&conf.Target, "target", "", "single target, example:\n127.0.0.1\n127.0.0.1:8080\nhttp://127.0.0.1")
 	flag.StringVar(&conf.Targets, "targets", "", "multiple goals, examlpe:\n127.0.0.1\n127.0.0.1:8080\nhttp://127.0.0.1")
 	flag.IntVar(&conf.Threads, "thread", 10, "config probe thread")
@@ -61,9 +68,6 @@ func main() {
 	flag.StringVar(&conf.HeadlessProxy, "headless-proxy", "", "chrome browser proxy")
 	flag.StringVar(&conf.CIDR, "cidr", "", "cidr file, example:\n127.0.0.1\n127.0.0.5-20\n127.0.0.2-127.0.0.20\n127.0.0.1/18")
 	flag.Var(&conf.Port, "port", "specify port, example:\n-port 80 -port 8080")
-	flag.Var(&conf.Header, "H", "specify request header, example:\n-H 'Content-Type: application/json' -H 'Bypass: 127.0.0.1'")
-	flag.StringVar(&conf.Method, "X", "GET", "request method")
-	flag.StringVar(&conf.Data, "D", "", "request body data")
 	flag.BoolVar(&conf.DisableScreenshot, "disable-screenshot", false, "disable screenshot")
 	flag.BoolVar(&conf.GetPath, "get-path", false, "get all request path")
 	flag.BoolVar(&conf.GetUrl, "get-url", false, "get all request url")
@@ -72,6 +76,10 @@ func main() {
 	flag.BoolVar(&conf.Silent, "silent", false, "silent output")
 	flag.BoolVar(&conf.Rebuild, "rebuild", false, "rebuild data table")
 	flag.BoolVar(&conf.Server, "server", false, "read the database by starting the web service")
+
+	flag.Var(&conf.Header, "header", "specify request header, example:\n-header 'Content-Type: application/json' -header 'Bypass: 127.0.0.1'")
+	flag.StringVar(&conf.Method, "method", "GET", "request method, example:\n-method GET")
+	flag.StringVar(&conf.Data, "data", "", "request body data, example:\n-data 'test=test'")
 	flag.Parse()
 
 	if strings.HasSuffix(conf.Output, ".db") {

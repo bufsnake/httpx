@@ -5,15 +5,8 @@
 ## Usage
 
 ```bash
--> % ./httpx -h
+ζ ./httpx -h
 Usage of ./httpx:
-  -D string
-    	request body data
-  -H value
-    	specify request header, example:
-    	-H 'Content-Type: application/json' -H 'Bypass: 127.0.0.1'
-  -X string
-    	request method (default "GET")
   -allow-jump
     	allow jump
   -chrome-path string
@@ -24,6 +17,9 @@ Usage of ./httpx:
     	127.0.0.5-20
     	127.0.0.2-127.0.0.20
     	127.0.0.1/18
+  -data string
+    	request body data, example:
+    	-data 'test=test'
   -disable-screenshot
     	disable screenshot
   -display-error
@@ -32,10 +28,16 @@ Usage of ./httpx:
     	get all request path
   -get-url
     	get all request url
+  -header value
+    	specify request header, example:
+    	-header 'Content-Type: application/json' -header 'Bypass: 127.0.0.1' (default [Content-Type: application/x-www-form-urlencoded])
   -headless-proxy string
     	chrome browser proxy
+  -method string
+    	request method, example:
+    	-method GET (default "GET")
   -output string
-    	output database file name (default "202110081729")
+    	output database file name (default "202111221205")
   -path string
     	specify request path for probe or screenshot
   -port value
@@ -137,8 +139,10 @@ body
 - [x] 设置请求头
 
   - bypass via 127.0.0.1,可设置其他IP
+
 - [x] 设置域名黑名单
 - [x] 第一次启动Server时，重置Host顺序
+- [x] 设置请求体
+- [x] 设置请求方式
+- [ ] 提取所有Parameter、Path进行FUZZ
 - [ ] 一键Copy所有ICP
-- [ ] 设置请求体
-- [ ] 设置请求方式
