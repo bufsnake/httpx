@@ -186,25 +186,28 @@ func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[strin
 				}
 			}
 		case *fetch.EventRequestPaused:
-			if len(c.conf_.Headers) == 0 {
-				return
-			}
 			// Add Headers
 			// Can Not Set Host Header
-			if !c.conf_.IsExist(e.Request.URL) {
-				return
+			if len(c.conf_.Headers) == 0 || !c.conf_.IsExist(e.Request.URL) {
+				go func() {
+					err := fetch.ContinueRequest(e.RequestID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
+					if err != nil {
+						c.l.Error(err)
+					}
+				}()
+			} else {
+				go func() {
+					err := fetch.ContinueRequest(e.RequestID).
+						WithURL(e.Request.URL).
+						WithMethod(c.conf_.Method).
+						WithPostData(base64.StdEncoding.EncodeToString([]byte(c.conf_.Data))). // If set, overrides the post data in the request. (Encoded as a base64 string when passed over JSON)
+						WithHeaders(c.conf_.Headers).
+						Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
+					if err != nil {
+						c.l.Error(err)
+					}
+				}()
 			}
-			go func() {
-				err := fetch.ContinueRequest(e.RequestID).
-					WithURL(e.Request.URL).
-					WithMethod(c.conf_.Method).
-					WithPostData(base64.StdEncoding.EncodeToString([]byte(c.conf_.Data))). // If set, overrides the post data in the request. (Encoded as a base64 string when passed over JSON)
-					WithHeaders(c.conf_.Headers).
-					Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
-				if err != nil {
-					c.l.Error(err)
-				}
-			}()
 		case *page.EventJavascriptDialogOpening:
 			// Disable JavaScriptDialog
 			// chrome IWA 不影响截图
