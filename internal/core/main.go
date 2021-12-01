@@ -6,8 +6,7 @@ import (
 	"github.com/bufsnake/httpx/pkg/log"
 	"github.com/bufsnake/httpx/pkg/requests"
 	"github.com/bufsnake/httpx/pkg/screenshot"
-	"github.com/bufsnake/httpx/pkg/utils"
-	"github.com/weppos/publicsuffix-go/publicsuffix"
+	"github.com/bufsnake/httpx/pkg/wappalyzer"
 	"net/url"
 	"os"
 	"strconv"
@@ -88,7 +87,6 @@ func (c *Core) Probe() error {
 		geturl := ""
 		for _, req := range c.reqs {
 			for urlstr, _ := range req {
-				// 判断是否在黑名单
 				parse, err := url.Parse(urlstr)
 				if err != nil {
 					c.log.Error(urlstr, err)
@@ -97,13 +95,13 @@ func (c *Core) Probe() error {
 				if strings.Contains(parse.Host, ":") {
 					parse.Host = strings.Split(parse.Host, ":")[0]
 				}
-				if utils.IsDomain(parse.Host) {
-					domain, err := publicsuffix.Domain(parse.Host)
-					if err == nil {
-						if _, ok := c.conf.OutOfRange[domain]; ok {
-							continue
-						}
+				for black, _ := range c.conf.OutOfRange {
+					if strings.Contains(parse.Host, black) {
+						parse.Host = ""
 					}
+				}
+				if parse.Host == "" {
+					continue
 				}
 				if c.conf.GetUrl {
 					geturl += urlstr + "\n"
@@ -114,7 +112,6 @@ func (c *Core) Probe() error {
 				}
 			}
 		}
-
 		getpath = strings.Trim(getpath, "\n")
 		if getpath != "" {
 			_ = os.WriteFile(c.conf.Output+"_path", []byte(strings.Trim(getpath, "\n")), 0777)
@@ -204,8 +201,9 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 				err   error
 			)
 			reqs := make(map[string]bool)
+			fingers := make(map[string]wappalyzer.Technologie)
 			// Get Path from JS Files
-			run, icp, title, reqs, err = screen_shot.Run(data.URL)
+			run, icp, title, reqs, fingers, err = screen_shot.Run(data.URL)
 			if err != nil {
 				c.log.Error(err)
 			} else {
@@ -220,6 +218,26 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 			c.reqs_l.Lock()
 			c.reqs = append(c.reqs, reqs)
 			c.reqs_l.Unlock()
+			if len(fingers) != 0 {
+				fingers_ := make([]models.Finger, 0)
+				for name, val := range fingers {
+					Categories := ""
+					for i := 0; i < len(val.Categories); i++ {
+						Categories += val.Categories[i].Name + "\n"
+					}
+					fingers_ = append(fingers_, models.Finger{
+						URL:        data.URL,
+						Name:       name,
+						Confidence: val.Confidence,
+						Version:    val.Version,
+						ICON:       val.Icon,
+						WebSite:    val.Website,
+						CPE:        val.Cpe,
+						Categories: strings.Trim(Categories, "\n"),
+					})
+				}
+				c.log.SaveFinger(fingers_)
+			}
 		}
 		c.log.Println(data.StatusCode, data.URL, data.BodyLength, data.Title, data.CreateTime)
 		c.log.SaveData(data)

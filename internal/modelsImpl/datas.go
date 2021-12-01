@@ -52,6 +52,10 @@ func (d *Database) InitDatabase() error {
 	if err != nil {
 		return err
 	}
+	err = d.db.AutoMigrate(&models.Finger{})
+	if err != nil {
+		return err
+	}
 	err = d.CreateLock()
 	if err != nil {
 		return err
@@ -128,6 +132,10 @@ func (d *Database) CreateDatas(datas *[]models.Datas) error {
 		}
 		(*datas)[0].Image = "/v1/imageload?id=" + strconv.Itoa(image)
 	}
+	return d.db.Create(datas).Error
+}
+
+func (d *Database) CreateFinger(datas *[]models.Finger) error {
 	return d.db.Create(datas).Error
 }
 
@@ -218,4 +226,13 @@ func (d *Database) CopyLinks(sql string, params []interface{}) (string, error) {
 		data += datas[i].URL + "\n"
 	}
 	return strings.Trim(data, "\n"), nil
+}
+
+func (d *Database) ReadFinger(url string) ([]models.Finger, error) {
+	fingers := make([]models.Finger, 0)
+	err := d.db.Model(&models.Finger{}).Where("url = ?", url).Find(&fingers).Error
+	if err != nil {
+		return fingers, err
+	}
+	return fingers, nil
 }

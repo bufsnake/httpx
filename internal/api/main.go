@@ -4,9 +4,11 @@ import (
 	"github.com/bufsnake/httpx/internal/models"
 	"github.com/bufsnake/httpx/internal/modelsImpl"
 	"github.com/bufsnake/httpx/pkg/query"
+	"github.com/bufsnake/httpx/pkg/wappalyzer"
 	"github.com/gin-gonic/gin"
 	"log"
 	"strconv"
+	"strings"
 )
 
 type api struct {
@@ -40,6 +42,13 @@ func (a *api) GetData(c *gin.Context) {
 	if err != nil {
 		c.String(500, err.Error())
 		return
+	}
+	for i := 0; i < len(datas); i++ {
+		finger, err := a.db.ReadFinger(datas[i].URL)
+		if err != nil {
+			continue
+		}
+		datas[i].Fingers = finger
 	}
 	c.JSON(200, getdata{Datas: datas, Total: int(count)})
 }
@@ -96,6 +105,13 @@ func (a *api) Search(c *gin.Context) {
 		c.String(500, err.Error())
 		return
 	}
+	for i := 0; i < len(datas); i++ {
+		finger, err := a.db.ReadFinger(datas[i].URL)
+		if err != nil {
+			continue
+		}
+		datas[i].Fingers = finger
+	}
 	c.JSON(200, getdata{Query: formatQuery, Datas: datas, Total: int(count)})
 }
 
@@ -127,4 +143,23 @@ func (a *api) Copy(c *gin.Context) {
 		}
 	}
 	c.String(200, links)
+}
+
+func (a *api) FingerLoad(c *gin.Context) {
+	url := c.Query("url")
+	finger, err := a.db.ReadFinger(url)
+	if err != nil {
+		c.String(500, err.Error())
+		return
+	}
+	c.JSON(200, finger)
+}
+
+func (a *api) GetICON(c *gin.Context) {
+	icon := c.Query("icon")
+	readICON := wappalyzer.ReadICON(icon)
+	if strings.HasSuffix(icon, "svg") {
+		c.Header("Content-Type", "image/svg+xml")
+	}
+	c.String(200, readICON)
 }

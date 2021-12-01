@@ -9,6 +9,7 @@ import (
 // terminal options
 type Terminal struct {
 	Probes            map[string]map[string]bool // all probe data
+	API               string                     // http server
 	Target            string                     // single target
 	Targets           string                     // multiple targets
 	Threads           int                        // scan threads
@@ -19,6 +20,7 @@ type Terminal struct {
 	Output            string                     // output file，default .html
 	Path              string                     // URL Path
 	DisableScreenshot bool                       // disable screenshot
+	DisableHeadless   bool                       // disable headless
 	DisplayError      bool                       // Show error
 	AllowJump         bool                       // allow jump
 	Silent            bool                       // silent model

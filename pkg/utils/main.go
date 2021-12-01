@@ -2,9 +2,15 @@ package utils
 
 import (
 	"github.com/bufsnake/parseip"
+	"math/rand"
 	"regexp"
 	"strings"
+	"time"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func ICPInfo(data string) string {
 	icp_info := regexp.MustCompile("\\W[ ]{0,10}[I公]{1}[ ]{0,10}[C网]{1}[ ]{0,10}[P安]{1}[ ]{0,10}[证备][ ]{0,10}\\d+[ ]{0,10}[号\\-\\d ]{0,10}")
@@ -38,4 +44,23 @@ func IsDomain(data string) bool {
 		return false
 	}
 	return true
+}
+
+func IsArrExist(datas []string, data string) bool {
+	for _, data_ := range datas {
+		if data_ == data {
+			return true
+		}
+	}
+	return false
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func RandString(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }

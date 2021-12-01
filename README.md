@@ -1,14 +1,17 @@
 ## 简介
 
-> 判断 http/https 并截图
+> 判断 http/https 并进行截图、指纹识别
 
 ## Usage
 
 ```bash
-ζ ./httpx -h
+└> ./httpx -h
+2021/12/01 10:28:02 wappalyzer fingers count 2548, groups count 17, categories count 96, no icon count 47
 Usage of ./httpx:
   -allow-jump
     	allow jump
+  -api string
+    	http server listen address (default "127.0.0.1:9100")
   -chrome-path string
     	chrome browser path
   -cidr string
@@ -20,6 +23,8 @@ Usage of ./httpx:
   -data string
     	request body data, example:
     	-data 'test=test'
+  -disable-headless
+    	disable chrome headless
   -disable-screenshot
     	disable screenshot
   -display-error
@@ -37,7 +42,7 @@ Usage of ./httpx:
     	request method, example:
     	-method GET (default "GET")
   -output string
-    	output database file name (default "202111221205")
+    	output database file name (default "202112011028")
   -path string
     	specify request path for probe or screenshot
   -port value
@@ -128,7 +133,7 @@ body
 
 > 模板改自xray模板
 
-![image-20211008173535817](.images/image-20211008173535817.png)
+![image-20211201103007866](.images/image-20211201103007866.png)
 
 ![image-20210723135945748](.images/image-20210723135945748.png)
 
@@ -137,12 +142,14 @@ body
 - [x] JSFinder 获取页面内完整链接
 - [x] goquery 获取页面内完整链接 form、a、script、link、img(使用无头进行获取，全局枚举包含href、action、src属性的标签，并提取值)
 - [x] 设置请求头
-
   - bypass via 127.0.0.1,可设置其他IP
-
 - [x] 设置域名黑名单
 - [x] 第一次启动Server时，重置Host顺序
 - [x] 设置请求体
 - [x] 设置请求方式
 - [ ] 提取所有Parameter、Path进行FUZZ
 - [ ] 一键Copy所有ICP
+- [x] 指纹识别 https://github.com/AliasIO/wappalyzer
+- [ ] websocket、原型链污染
+- [ ] 未发出请求的链接进行手动发送
+- [ ] 常见信息提取 github.com/mingrammer/commonregex

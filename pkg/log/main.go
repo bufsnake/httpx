@@ -36,12 +36,18 @@ func (l *Log) Println(StatusCode, URL, BodyLength, Title, CreateTime string) {
 	}
 }
 
+func (l *Log) SaveFinger(fingers []models.Finger) {
+	err := l.DB.CreateFinger(&fingers)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
 func (l *Log) SaveData(data models.Datas) {
 	// TODO: 入库
 	err := l.DB.CreateDatas(&[]models.Datas{data})
 	if err != nil {
 		fmt.Println(err)
-		return
 	}
 	l.percentage()
 }

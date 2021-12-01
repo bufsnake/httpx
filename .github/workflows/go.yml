@@ -21,6 +21,7 @@ jobs:
 
     - name: Build && Packet
       run: |
+        git clone https://github.com/AliasIO/wappalyzer.git cmd/httpx/wappalyzer
         go build -v -ldflags '-w -s' -gcflags '-N -l' -o httpx cmd/httpx/main.go
         tar -zcvf httpx.tar.gz httpx
 
