@@ -3,6 +3,7 @@ package utils
 import (
 	"github.com/bufsnake/parseip"
 	"math/rand"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -63,4 +64,16 @@ func RandString(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+// 写文件
+func AppendFile(filename, data string) error {
+	fd, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+	buf := []byte(data)
+	_, err = fd.Write(buf)
+	return err
 }

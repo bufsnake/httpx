@@ -6,9 +6,9 @@ import (
 	"github.com/bufsnake/httpx/pkg/log"
 	"github.com/bufsnake/httpx/pkg/requests"
 	"github.com/bufsnake/httpx/pkg/screenshot"
+	"github.com/bufsnake/httpx/pkg/utils"
 	"github.com/bufsnake/httpx/pkg/wappalyzer"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,15 +16,13 @@ import (
 )
 
 type Core struct {
-	log    *log.Log
-	conf   *config.Terminal
-	reqs   []map[string]bool
-	reqs_l sync.Mutex
+	log  *log.Log
+	conf *config.Terminal
+	spl  sync.Mutex
 }
 
 func NewCore(l *log.Log, c *config.Terminal) Core {
-	reqs := make([]map[string]bool, 0)
-	return Core{log: l, conf: c, reqs: reqs}
+	return Core{log: l, conf: c}
 }
 
 func (c *Core) Probe() error {
@@ -82,45 +80,6 @@ func (c *Core) Probe() error {
 	urlwait.Wait()
 	close(datas)
 	screenshot_wait.Wait()
-	if c.conf.GetPath {
-		getpath := ""
-		geturl := ""
-		for _, req := range c.reqs {
-			for urlstr, _ := range req {
-				parse, err := url.Parse(urlstr)
-				if err != nil {
-					c.log.Error(urlstr, err)
-					continue
-				}
-				if strings.Contains(parse.Host, ":") {
-					parse.Host = strings.Split(parse.Host, ":")[0]
-				}
-				for black, _ := range c.conf.OutOfRange {
-					if strings.Contains(parse.Host, black) {
-						parse.Host = ""
-					}
-				}
-				if parse.Host == "" {
-					continue
-				}
-				if c.conf.GetUrl {
-					geturl += urlstr + "\n"
-				}
-				subpaths := parsePath(parse.Scheme+"://"+parse.Host, parse.Path)
-				for subpath := range subpaths {
-					getpath += subpath + "\n"
-				}
-			}
-		}
-		getpath = strings.Trim(getpath, "\n")
-		if getpath != "" {
-			_ = os.WriteFile(c.conf.Output+"_path", []byte(strings.Trim(getpath, "\n")), 0777)
-		}
-		geturl = strings.Trim(geturl, "\n")
-		if geturl != "" {
-			_ = os.WriteFile(c.conf.Output+"_url", []byte(strings.Trim(geturl, "\n")), 0777)
-		}
-	}
 	return nil
 }
 
@@ -215,9 +174,7 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 			if title != "" {
 				data.Title = title
 			}
-			c.reqs_l.Lock()
-			c.reqs = append(c.reqs, reqs)
-			c.reqs_l.Unlock()
+			c.savePath(reqs)
 			if len(fingers) != 0 {
 				fingers_ := make([]models.Finger, 0)
 				for name, val := range fingers {
@@ -242,5 +199,46 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 		c.log.Println(data.StatusCode, data.URL, data.BodyLength, data.Title, data.CreateTime)
 		c.log.SaveData(data)
 		c.log.PercentageAdd()
+	}
+}
+
+func (c *Core) savePath(reqs map[string]bool) {
+	c.spl.Lock()
+	defer c.spl.Unlock()
+	if c.conf.GetPath {
+		getpath := ""
+		geturl := ""
+		for urlstr, _ := range reqs {
+			parse, err := url.Parse(urlstr)
+			if err != nil {
+				c.log.Error(urlstr, err)
+				continue
+			}
+			if strings.Contains(parse.Host, ":") {
+				parse.Host = strings.Split(parse.Host, ":")[0]
+			}
+			for black, _ := range c.conf.OutOfRange {
+				if strings.Contains(parse.Host, black) {
+					parse.Host = ""
+				}
+			}
+			if parse.Host == "" {
+				continue
+			}
+			if c.conf.GetUrl {
+				geturl += urlstr + "\n"
+			}
+			subpaths := parsePath(parse.Scheme+"://"+parse.Host, parse.Path)
+			for subpath := range subpaths {
+				getpath += subpath + "\n"
+			}
+		}
+
+		if getpath != "" {
+			_ = utils.AppendFile(c.conf.Output+"_path", getpath)
+		}
+		if geturl != "" {
+			_ = utils.AppendFile(c.conf.Output+"_url", geturl)
+		}
 	}
 }

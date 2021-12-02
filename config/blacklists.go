@@ -7,4 +7,11 @@ var OutOfRange = []string{
 	"google.com",
 	"github.com",
 	"github.io",
+	"w3.org",
+	"axios-http.com",
+	"wikipedia.org",
+	"example.com",
+	"qq.com",
+	"wechat.com",
+    "zhihu.com",
 }
