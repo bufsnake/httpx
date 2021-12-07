@@ -7,7 +7,7 @@ import (
 )
 
 type Screenshot interface {
-	Run(url string) (string, string, string, map[string]bool, map[string]wappalyzer.Technologie, error)
+	Run(url string) (string, string, string, map[string]bool, map[string]wappalyzer.Technologie, map[string]bool, error)
 	InitEnv() error
 	Cancel()
 	SwitchTab()

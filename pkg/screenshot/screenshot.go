@@ -70,12 +70,12 @@ var bypass_headless_detect = `(function(w, n, wn) {
 })(window, navigator, window.navigator);`
 
 // png/icp/err
-func (c *chrome) Run(url string) (string, string, string, map[string]bool, map[string]wappalyzer.Technologie, error) {
-	buf, icp, title, reqs, fingers, err := c.runChromedp(url)
+func (c *chrome) Run(url string) (string, string, string, map[string]bool, map[string]wappalyzer.Technologie, map[string]bool, error) {
+	buf, icp, title, reqs, fingers, qr, err := c.runChromedp(url)
 	if err != nil {
-		return "", "", "", nil, nil, err
+		return "", "", "", nil, nil, nil, err
 	}
-	return base64.StdEncoding.EncodeToString(buf), icp, title, reqs, fingers, nil
+	return base64.StdEncoding.EncodeToString(buf), icp, title, reqs, fingers, qr, nil
 }
 
 // Init Start CTX
@@ -143,7 +143,7 @@ func (c *chrome) Cancel() {
 }
 
 // 获取
-func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[string]bool, lock_ *sync.Mutex, responseId *map[network.RequestID]bool) func(ev interface{}) {
+func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[string]bool, lock_ *sync.Mutex, responseId *map[network.RequestID]bool, qrl *sync.Mutex, qr map[string]bool) func(ev interface{}) {
 	return func(ev interface{}) {
 		switch e := ev.(type) {
 		case *network.EventWebSocketCreated:
@@ -159,6 +159,31 @@ func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[strin
 			request[e.Request.URL] = true
 			lock.Unlock()
 		case *network.EventResponseReceived:
+			go func() {
+				if e.Type != "Image" {
+					return
+				}
+				body, err := network.GetResponseBody(e.RequestID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
+				if err != nil && !strings.HasPrefix(err.Error(), "No data found for") {
+					c.l.Error(err)
+					return
+				}
+				decode, err := utils.QRDecode(body)
+				if err != nil {
+					c.l.Error(err)
+					return
+				}
+				if decode == "" {
+					return
+				}
+				req_url := e.Response.URL
+				if len(e.Response.URL) > 100 {
+					req_url = "url length is too long"
+				}
+				qrl.Lock()
+				qr[req_url+" ----> "+decode] = true
+				qrl.Unlock()
+			}()
 			if !c.conf_.GetPath && !c.conf_.GetUrl {
 				return
 			}
@@ -186,6 +211,11 @@ func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[strin
 						lock.Lock()
 						request[split[1]] = true
 						lock.Unlock()
+						if strings.HasSuffix(strings.ToUpper(split[1]), ".APK") {
+							qrl.Lock()
+							qr["apk ----> "+split[1]] = true
+							qrl.Unlock()
+						}
 					}
 				}
 			}
@@ -226,7 +256,7 @@ func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[strin
 }
 
 // Start Sub Tabs png/icp/title/req-url/fingers
-func (c *chrome) runChromedp(url string) ([]byte, string, string, map[string]bool, map[string]wappalyzer.Technologie, error) {
+func (c *chrome) runChromedp(url string) ([]byte, string, string, map[string]bool, map[string]wappalyzer.Technologie, map[string]bool, error) {
 	var buf []byte
 	var icp string
 	var title string
@@ -240,11 +270,14 @@ func (c *chrome) runChromedp(url string) ([]byte, string, string, map[string]boo
 	newContext, cancelFunc = context.WithTimeout(newContext, 30*time.Second)
 	defer cancelFunc()
 
+	qrl := sync.Mutex{}
+	qr := make(map[string]bool)
+
 	newWappalyzer := wappalyzer.NewWappalyzer(c.l)
 
 	parse, err := url2.Parse(url)
 	if err != nil {
-		return nil, "", "", nil, nil, err
+		return nil, "", "", nil, nil, qr, err
 	}
 	if strings.Contains(parse.Host, ":") {
 		parse.Host = strings.Split(parse.Host, ":")[0]
@@ -252,23 +285,23 @@ func (c *chrome) runChromedp(url string) ([]byte, string, string, map[string]boo
 	newWappalyzer.DetectDNS(parse.Host)
 	newWappalyzer.DetectRobots(url)
 
-	chromedp.ListenTarget(newContext, c.listen(newContext, &lock, requestURL, &lock_, &requestId))
+	chromedp.ListenTarget(newContext, c.listen(newContext, &lock, requestURL, &lock_, &requestId, &qrl, qr))
 	chromedp.ListenTarget(newContext, newWappalyzer.DetectListen(newContext))
 	// new tabs
 	// chromedp.Run -> newTarget -> target.CreateTarget -> (p *CreateTargetParams) Do -> context canceled/context deadline exceeded
 	// tabs can not auto close
-	if err = chromedp.Run(newContext, c.screenshot(url, &icp, &buf, &title, &lock_, &requestId, &jsfinder_href_src, newWappalyzer.DetectActions())); err != nil {
-		return []byte{}, "", "", requestURL, nil, errors.New("chromedp.Run error: " + err.Error())
+	if err = chromedp.Run(newContext, c.screenshot(url, &icp, &buf, &title, &lock_, &requestId, &jsfinder_href_src, newWappalyzer.DetectActions(), &qrl, qr)); err != nil {
+		return []byte{}, "", "", requestURL, nil, qr, errors.New("chromedp.Run error: " + err.Error())
 	}
 	lock.Lock()
 	defer lock.Unlock()
 	for urlstr := range jsfinder_href_src {
 		requestURL[urlstr] = true
 	}
-	return buf, icp, title, requestURL, newWappalyzer.GetFingers(), nil
+	return buf, icp, title, requestURL, newWappalyzer.GetFingers(), qr, nil
 }
 
-func (c *chrome) screenshot(urlstr string, icp *string, res *[]byte, title *string, lock_ *sync.Mutex, responseId *map[network.RequestID]bool, resq *map[string]bool, fingeractions chromedp.Action) chromedp.Tasks {
+func (c *chrome) screenshot(urlstr string, icp *string, res *[]byte, title *string, lock_ *sync.Mutex, responseId *map[network.RequestID]bool, resq *map[string]bool, fingeractions chromedp.Action, qrl *sync.Mutex, qr map[string]bool) chromedp.Tasks {
 	return chromedp.Tasks{
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			if len(c.conf_.Headers) > 0 {
@@ -360,6 +393,11 @@ func (c *chrome) screenshot(urlstr string, icp *string, res *[]byte, title *stri
 						lock_.Lock()
 						(*resq)[url_] = true
 						lock_.Unlock()
+						if strings.HasSuffix(strings.ToUpper(url_), ".APK") {
+							qrl.Lock()
+							qr["apk ----> "+url_] = true
+							qrl.Unlock()
+						}
 					}
 				}
 			}
@@ -392,6 +430,7 @@ cycle(document.documentElement);
 		fingeractions,
 		chromedp.Sleep(1 * time.Second),
 		chromedp.ActionFunc(func(ctx context.Context) error {
+
 			// tab从右往左进行关闭 context deadline exceeded 就是因为这个
 			err := target.CloseTarget(chromedp.FromContext(ctx).Target.TargetID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Browser))
 			if err != nil {

@@ -1,7 +1,15 @@
 package utils
 
 import (
+	"bytes"
+	"fmt"
 	"github.com/bufsnake/parseip"
+	"github.com/liyue201/goqr"
+	_ "golang.org/x/image/bmp"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"math/rand"
 	"os"
 	"regexp"
@@ -76,4 +84,20 @@ func AppendFile(filename, data string) error {
 	buf := []byte(data)
 	_, err = fd.Write(buf)
 	return err
+}
+
+func QRDecode(content []byte) (string, error) {
+	img, _, err := image.Decode(bytes.NewReader(content))
+	if err != nil {
+		return "", err
+	}
+	qrCodes, err := goqr.Recognize(img)
+	if err != nil {
+		return "", err
+	}
+	ret := ""
+	for _, qrCode := range qrCodes {
+		ret += fmt.Sprintf("%s\n", qrCode.Payload)
+	}
+	return strings.Trim(ret, "\n"), nil
 }

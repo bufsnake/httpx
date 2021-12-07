@@ -14,4 +14,11 @@ var OutOfRange = []string{
 	"qq.com",
 	"wechat.com",
     "zhihu.com",
+    "aliyun.",
+    "apple.",
+    "apache.org",
+    "googlevideo.com",
+    "google.cn",
+    ".google",
+    "npmjs.org",
 }

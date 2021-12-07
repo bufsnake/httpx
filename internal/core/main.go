@@ -152,6 +152,7 @@ func (c *Core) routine(w *sync.WaitGroup, u chan [2]string, datas chan models.Da
 func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_shot screenshot.Screenshot) {
 	defer w.Done()
 	for data := range datas {
+		qr := make(map[string]bool)
 		if !c.conf.DisableScreenshot {
 			var (
 				run   string
@@ -162,7 +163,7 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 			reqs := make(map[string]bool)
 			fingers := make(map[string]wappalyzer.Technologie)
 			// Get Path from JS Files
-			run, icp, title, reqs, fingers, err = screen_shot.Run(data.URL)
+			run, icp, title, reqs, fingers, qr, err = screen_shot.Run(data.URL)
 			if err != nil {
 				c.log.Error(err)
 			} else {
@@ -196,7 +197,7 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 				c.log.SaveFinger(fingers_)
 			}
 		}
-		c.log.Println(data.StatusCode, data.URL, data.BodyLength, data.Title, data.CreateTime)
+		c.log.Println(data.StatusCode, data.URL, data.BodyLength, data.Title, data.CreateTime, qr)
 		c.log.SaveData(data)
 		c.log.PercentageAdd()
 	}

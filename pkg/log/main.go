@@ -28,11 +28,14 @@ func (l *Log) SetNumberOfTabs(count int) {
 	l.numberOfTabs = count
 }
 
-func (l *Log) Println(StatusCode, URL, BodyLength, Title, CreateTime string) {
+func (l *Log) Println(StatusCode, URL, BodyLength, Title, CreateTime string, qr map[string]bool) {
 	if l.Silent {
 		fmt.Println("\r" + URL)
 	} else {
 		fmt.Println(fmt.Sprintf("%-150s", "\r["+BrightGreen(StatusCode).String()+"] ["+BrightWhite(URL).String()+"] ["+BrightRed(BodyLength).String()+"] ["+BrightCyan(Title).String()+"] ["+BrightBlue(CreateTime).String()+"]"))
+		for data, _ := range qr {
+			fmt.Println(data)
+		}
 	}
 }
 

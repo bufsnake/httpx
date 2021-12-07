@@ -153,3 +153,5 @@ body
 - [ ] websocket、原型链污染
 - [ ] 未发出请求的链接进行手动发送
 - [ ] 常见信息提取 github.com/mingrammer/commonregex
+- [x] 二维码识别、APK链接提取(需-get-path)
+- [ ] http2 detect
