@@ -222,7 +222,7 @@ func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[strin
 		case *fetch.EventRequestPaused:
 			// Add Headers
 			// Can Not Set Host Header
-			if len(c.conf_.Headers) == 0 || !c.conf_.IsExist(e.Request.URL) {
+			if len(c.conf_.Headers) == 0 || !c.conf_.IsExist(strings.Trim(e.Request.URL, "/")) {
 				go func() {
 					err := fetch.ContinueRequest(e.RequestID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
 					if err != nil {
@@ -231,11 +231,19 @@ func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[strin
 				}()
 			} else {
 				go func() {
+					headers := make([]*fetch.HeaderEntry, 0)
+					for i := 0; i < len(c.conf_.Headers); i++ {
+						if strings.ToUpper(c.conf_.Headers[i].Name) == "HOST" {
+							continue
+						}
+						c.conf_.Headers[i].Value = strings.ReplaceAll(c.conf_.Headers[i].Value, "{{RAND}}", utils.RandString(10))
+						headers = append(headers, c.conf_.Headers[i])
+					}
 					err := fetch.ContinueRequest(e.RequestID).
 						WithURL(e.Request.URL).
 						WithMethod(c.conf_.Method).
 						WithPostData(base64.StdEncoding.EncodeToString([]byte(c.conf_.Data))). // If set, overrides the post data in the request. (Encoded as a base64 string when passed over JSON)
-						WithHeaders(c.conf_.Headers).
+						WithHeaders(headers).
 						Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
 					if err != nil {
 						c.l.Error(err)

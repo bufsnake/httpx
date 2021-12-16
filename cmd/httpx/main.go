@@ -16,6 +16,7 @@ import (
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/gin-gonic/gin"
 	"io/fs"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -44,6 +45,7 @@ func init() {
 		os.Exit(1)
 	}
 	_ = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	rand.Seed(time.Now().UnixNano())
 }
 
 //go:embed website
@@ -99,7 +101,7 @@ func main() {
 	flag.BoolVar(&conf.Rebuild, "rebuild", false, "rebuild data table")
 	flag.BoolVar(&conf.Server, "server", false, "read the database by starting the web service")
 
-	flag.Var(&conf.Header, "header", "specify request header, example:\n-header 'Content-Type: application/json' -header 'Bypass: 127.0.0.1'")
+	flag.Var(&conf.Header, "header", "specify request header, example:\n-header 'Content-Type: application/json' -header 'Bypass: 127.0.0.1'\n-header 'Host: {{RAND}}.dnslog.cn'")
 	flag.StringVar(&conf.Method, "method", "GET", "request method, example:\n-method GET")
 	flag.StringVar(&conf.Data, "data", "", "request body data, example:\n-data 'test=test'")
 	flag.Parse()

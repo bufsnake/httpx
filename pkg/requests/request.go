@@ -79,6 +79,7 @@ func (r *request) Run() error {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Connection", "close")
 	for i := 0; i < len(r.conf.Headers); i++ {
+		r.conf.Headers[i].Value = strings.ReplaceAll(r.conf.Headers[i].Value, "{{RAND}}", utils.RandString(10))
 		if strings.ToUpper(r.conf.Headers[i].Name) == "HOST" {
 			req.Host = r.conf.Headers[i].Value
 			continue

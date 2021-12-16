@@ -90,6 +90,10 @@ Usage of ./httpx:
 ▶ ./httpx -output TEST.db -server # 启动服务并访问 http://127.0.0.1:9100/
 ```
 
+```bash
+▶ ./httpx -targets domains.txt -header "Host: {{RAND}}.dnslog.cn" # 对应header的fuzz，搭配代理工具获取请求包，查询RAND字段
+```
+
 ## 逻辑查询
 
 📢: 正常查询字符串时，必须添加""
@@ -155,3 +159,4 @@ body
 - [ ] 常见信息提取 github.com/mingrammer/commonregex
 - [x] 二维码识别、APK链接提取(需-get-path)
 - [ ] http2 detect
+- [ ] 功能整合: JSFinder
