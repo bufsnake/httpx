@@ -133,11 +133,25 @@ body
 - host="127.0.0.1" && body="test"
 - (icp="京" || icp="沪") && title="404"
 
+## 操作
+
+- TLS 面板
+
+  > 双击关闭
+
+- Screenshot 面板
+
+  > 单击关闭
+
+- -rebuild 选项
+
+  > 重新排序资产(只会排序一次)
+
 ## Screenshot
 
 > 模板改自xray模板
 
-![image-20211201103007866](.images/image-20211201103007866.png)
+![image-20220106122454872](.images/image-20220106122454872.png)
 
 ![image-20210723135945748](.images/image-20210723135945748.png)
 
@@ -158,5 +172,3 @@ body
 - [ ] 未发出请求的链接进行手动发送
 - [ ] 常见信息提取 github.com/mingrammer/commonregex
 - [x] 二维码识别、APK链接提取(需-get-path)
-- [ ] http2 detect
-- [ ] 功能整合: JSFinder
