@@ -11,11 +11,12 @@ import (
 	"github.com/bufsnake/httpx/internal/modelsImpl"
 	"github.com/bufsnake/httpx/pkg/log"
 	"github.com/bufsnake/httpx/pkg/utils"
-	"github.com/bufsnake/httpx/pkg/wappalyzer"
 	"github.com/bufsnake/parseip"
+	"github.com/bufsnake/wappalyzer"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/gin-gonic/gin"
 	"io/fs"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -65,12 +66,6 @@ func main() {
 		return
 	}
 	wappalyzer.SetReadICONURL("/v1/geticon?icon=")
-	//newWappalyzer := wappalyzer.NewWappalyzer()
-	//newWappalyzer.Headers(map[string]string{
-	//	"Server": "Darwin",
-	//})
-	//newWappalyzer.DNS(os.Args[1])
-	//os.Exit(1)
 	conf := config.Terminal{}
 	conf.Assets = make(map[string]bool)
 	// default content-type
@@ -82,6 +77,7 @@ func main() {
 	flag.StringVar(&conf.Target, "target", "", "single target, example:\n127.0.0.1\n127.0.0.1:8080\nhttp://127.0.0.1")
 	flag.StringVar(&conf.Targets, "targets", "", "multiple goals, examlpe:\n127.0.0.1\n127.0.0.1:8080\nhttp://127.0.0.1")
 	flag.IntVar(&conf.Threads, "thread", 10, "config probe thread")
+	flag.StringVar(&conf.Scope, "scope", "", "scope host or url")
 	flag.StringVar(&conf.Proxy, "proxy", "", "config probe proxy, example: http://127.0.0.1:8080")
 	flag.StringVar(&conf.API, "api", "127.0.0.1:9100", "http server listen address")
 	flag.IntVar(&conf.Timeout, "timeout", 10, "config probe http request timeout")
@@ -92,9 +88,7 @@ func main() {
 	flag.StringVar(&conf.CIDR, "cidr", "", "cidr file, example:\n127.0.0.1\n127.0.0.5-20\n127.0.0.2-127.0.0.20\n127.0.0.1/18")
 	flag.Var(&conf.Port, "port", "specify port, example:\n-port 80 -port 8080")
 	flag.BoolVar(&conf.DisableScreenshot, "disable-screenshot", false, "disable screenshot")
-	flag.BoolVar(&conf.GetPath, "get-path", false, "get all request path")
 	flag.BoolVar(&conf.DisableHeadless, "disable-headless", false, "disable chrome headless")
-	flag.BoolVar(&conf.GetUrl, "get-url", false, "get all request url")
 	flag.BoolVar(&conf.DisplayError, "display-error", false, "display error")
 	flag.BoolVar(&conf.AllowJump, "allow-jump", false, "allow jump")
 	flag.BoolVar(&conf.Silent, "silent", false, "silent output")
@@ -186,6 +180,7 @@ func main() {
 		}
 		newAPI := api.NewAPI(&database)
 		engine := gin.Default()
+		_ = engine.SetTrustedProxies(nil)
 		engine.StaticFS("/ui", http.FS(website_t))
 		engine.NoRoute(func(c *gin.Context) {
 			c.Redirect(301, "/ui")
@@ -217,15 +212,26 @@ func main() {
 		fmt.Println("can not specify port, only CIDR work")
 		return
 	}
-
-	if (conf.GetPath || conf.GetUrl) && conf.DisableScreenshot {
-		fmt.Println("get path/get url must enable screenshot")
-		return
+	if len(conf.Scope) != 0 {
+		scope, err := ioutil.ReadFile(conf.Scope)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		conf.Scopes = make(map[string]bool)
+		scopes := strings.Split(string(scope), "\n")
+		for i := 0; i < len(scopes); i++ {
+			scopes[i] = strings.ReplaceAll(strings.ReplaceAll(scopes[i], "http://", ""), "https://", "")
+			if strings.Contains(scopes[i], ":") {
+				scopes[i] = strings.Split(scopes[i], ":")[0]
+			}
+			conf.Scopes[scopes[i]] = true
+		}
 	}
 
 	if conf.CIDR == "" {
 		temp_probes := make(map[string]map[string]bool)
-		for probe, _ := range probes {
+		for probe := range probes {
 			temp := &url.URL{}
 			if strings.HasPrefix(probe, "http://") || strings.HasPrefix(probe, "https://") {
 				temp, err = url.Parse(probe)
@@ -286,7 +292,7 @@ func main() {
 		conf.OutOfRange[config.OutOfRange[i]] = true
 	}
 
-	for asset, _ := range conf.Probes {
+	for asset := range conf.Probes {
 		if !utils.IsDomain(asset) {
 			continue
 		}
@@ -313,7 +319,7 @@ func main() {
 			conf.ProbesL.Lock()
 			defer conf.ProbesL.Unlock()
 			content := ""
-			for unprobe, _ := range conf.Probes {
+			for unprobe := range conf.Probes {
 				content += unprobe + "\n"
 			}
 			content = strings.Trim(content, "\n")

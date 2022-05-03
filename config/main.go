@@ -12,6 +12,8 @@ type Terminal struct {
 	API               string                     // http server
 	Target            string                     // single target
 	Targets           string                     // multiple targets
+	Scope             string                     // scope host/url
+	Scopes            map[string]bool            // scope host/url
 	Threads           int                        // scan threads
 	Proxy             string                     // proxy
 	HeadlessProxy     string                     // headless proxy
@@ -28,8 +30,6 @@ type Terminal struct {
 	CIDR              string                     // CIDR file
 	Stop              *bool
 	ProbesL           sync.Mutex
-	GetPath           bool // 获取请求的二级、三级、目录
-	GetUrl            bool // 获取请求URL，包括参数
 	Port              Ports
 	Header            Header
 	Headers           []*fetch.HeaderEntry

@@ -23,15 +23,16 @@ import (
 )
 
 type request struct {
-	url         string
-	status_code int
-	title       string
-	length      int
-	http_dump   string
-	tls         string
-	icp         string
-	conf        *config.Terminal
-	l           *log.Log
+	url           string
+	status_code   int
+	title         string
+	length        int
+	http_dump     string
+	tls           string
+	icp           string
+	xframeoptions string
+	conf          *config.Terminal
+	l             *log.Log
 }
 
 func (r *request) Run() error {
@@ -114,6 +115,7 @@ func (r *request) Run() error {
 			r.http_dump = string(resp)
 		}
 	}
+	r.xframeoptions = do.Header.Get("x-frame-options")
 
 	if r.title == "400 The plain HTTP request was sent to HTTPS port" {
 		return errors.New("response title is '400 The plain HTTP request was sent to HTTPS port'")
@@ -128,7 +130,7 @@ func (r *request) Run() error {
 	r.status_code = do.StatusCode
 	if do.TLS != nil {
 		certChain := do.TLS.PeerCertificates
-		tls_ := "================================================================== "
+		tls_ := ""
 		for j := 0; j < len(certChain); j++ {
 			cert := certChain[j]
 			result, err := certinfo.CertificateText(cert)
@@ -136,9 +138,7 @@ func (r *request) Run() error {
 				continue
 			}
 			tls_ += result
-			tls_ += "================================================================== "
 		}
-		tls_ += "End"
 		r.tls = tls_
 	}
 	r.icp = utils.ICPInfo(r.http_dump)
@@ -171,6 +171,10 @@ func (r *request) GetHTTPDump() string {
 
 func (r *request) GetICP() string {
 	return r.icp
+}
+
+func (r *request) GetXFrameOptions() string {
+	return r.xframeoptions
 }
 
 // 获取网站标题 - ret title,是否转换,error

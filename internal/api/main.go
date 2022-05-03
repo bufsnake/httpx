@@ -4,7 +4,7 @@ import (
 	"github.com/bufsnake/httpx/internal/models"
 	"github.com/bufsnake/httpx/internal/modelsImpl"
 	"github.com/bufsnake/httpx/pkg/query"
-	"github.com/bufsnake/httpx/pkg/wappalyzer"
+	"github.com/bufsnake/wappalyzer"
 	"github.com/gin-gonic/gin"
 	"log"
 	"strconv"

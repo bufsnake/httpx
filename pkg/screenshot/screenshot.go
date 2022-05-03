@@ -3,26 +3,20 @@ package screenshot
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/bufsnake/httpx/config"
 	"github.com/bufsnake/httpx/pkg/log"
 	"github.com/bufsnake/httpx/pkg/useragent"
 	"github.com/bufsnake/httpx/pkg/utils"
-	"github.com/bufsnake/httpx/pkg/wappalyzer"
+	"github.com/bufsnake/wappalyzer"
 	"github.com/chromedp/cdproto/cdp"
-	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/fetch"
-	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
-	url2 "net/url"
-	"regexp"
+	"net/url"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -70,12 +64,12 @@ var bypass_headless_detect = `(function(w, n, wn) {
 })(window, navigator, window.navigator);`
 
 // png/icp/err
-func (c *chrome) Run(url string) (string, string, string, map[string]bool, map[string]wappalyzer.Technologie, map[string]bool, error) {
-	buf, icp, title, reqs, fingers, qr, err := c.runChromedp(url)
+func (c *chrome) Run(url string) (string, string, map[string]wappalyzer.Technologie, error) {
+	buf, title, fingers, err := c.run_chromedp(url)
 	if err != nil {
-		return "", "", "", nil, nil, nil, err
+		return "", "", nil, err
 	}
-	return base64.StdEncoding.EncodeToString(buf), icp, title, reqs, fingers, qr, nil
+	return base64.StdEncoding.EncodeToString(buf), title, fingers, nil
 }
 
 // Init Start CTX
@@ -142,83 +136,10 @@ func (c *chrome) Cancel() {
 	defer c.cancel()
 }
 
-// 获取
-func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[string]bool, lock_ *sync.Mutex, responseId *map[network.RequestID]bool, qrl *sync.Mutex, qr map[string]bool) func(ev interface{}) {
+// 监听
+func (c *chrome) listen(ctx context.Context) func(ev interface{}) {
 	return func(ev interface{}) {
 		switch e := ev.(type) {
-		case *network.EventWebSocketCreated:
-			// TODO: websocket
-		case *network.EventRequestWillBeSent:
-			if !c.conf_.GetPath && !c.conf_.GetUrl {
-				return
-			}
-			if !strings.HasPrefix(e.Request.URL, "http") {
-				return
-			}
-			lock.Lock()
-			request[e.Request.URL] = true
-			lock.Unlock()
-		case *network.EventResponseReceived:
-			go func() {
-				if e.Type != "Image" {
-					return
-				}
-				body, err := network.GetResponseBody(e.RequestID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Target))
-				if err != nil && !strings.HasPrefix(err.Error(), "No data found for") {
-					c.l.Error(err)
-					return
-				}
-				decode, err := utils.QRDecode(body)
-				if err != nil {
-					c.l.Error(err)
-					return
-				}
-				if decode == "" {
-					return
-				}
-				req_url := e.Response.URL
-				if len(e.Response.URL) > 100 {
-					req_url = "url length is too long"
-				}
-				qrl.Lock()
-				qr[req_url+" ----> "+decode] = true
-				qrl.Unlock()
-			}()
-			if !c.conf_.GetPath && !c.conf_.GetUrl {
-				return
-			}
-			if !strings.HasPrefix(e.Response.URL, "http") {
-				return
-			}
-			// 获取requestId
-			lock_.Lock()
-			(*responseId)[e.RequestID] = true
-			lock_.Unlock()
-		case *runtime.EventConsoleAPICalled:
-			if !c.conf_.GetPath && !c.conf_.GetUrl {
-				return
-			}
-			for i := 0; i < len(e.Args); i++ {
-				var val string
-				err := json.Unmarshal(e.Args[i].Value, &val)
-				if err != nil {
-					c.l.Error(err)
-					continue
-				}
-				if strings.HasPrefix(val, "bufsnake") {
-					split := strings.Split(val, "bufsnake ")
-					if len(split) == 2 && strings.HasPrefix(split[1], "http") {
-						lock.Lock()
-						request[split[1]] = true
-						lock.Unlock()
-						if strings.HasSuffix(strings.ToUpper(split[1]), ".APK") {
-							qrl.Lock()
-							qr["apk ----> "+split[1]] = true
-							qrl.Unlock()
-						}
-					}
-				}
-			}
 		case *fetch.EventRequestPaused:
 			// Add Headers
 			// Can Not Set Host Header
@@ -263,53 +184,35 @@ func (c *chrome) listen(ctx context.Context, lock *sync.Mutex, request map[strin
 	}
 }
 
-// Start Sub Tabs png/icp/title/req-url/fingers
-func (c *chrome) runChromedp(url string) ([]byte, string, string, map[string]bool, map[string]wappalyzer.Technologie, map[string]bool, error) {
-	var buf []byte
-	var icp string
-	var title string
-	requestURL := make(map[string]bool)        // 打开网页请求的URL
-	jsfinder_href_src := make(map[string]bool) // JSFinder、SRC/HREF 获取的URL
-	lock := sync.Mutex{}
-	requestId := make(map[network.RequestID]bool)
-	lock_ := sync.Mutex{}
+func (c *chrome) run_chromedp(urlstr string) ([]byte, string, map[string]wappalyzer.Technologie, error) {
+	var (
+		buf   []byte
+		title string
+	)
 	newContext, cancelFunc := chromedp.NewContext(c.ctx)
 	defer cancelFunc()
 	newContext, cancelFunc = context.WithTimeout(newContext, 30*time.Second)
 	defer cancelFunc()
-
-	qrl := sync.Mutex{}
-	qr := make(map[string]bool)
-
-	newWappalyzer := wappalyzer.NewWappalyzer(c.l)
-
-	parse, err := url2.Parse(url)
+	newWappalyzer := wappalyzer.NewWappalyzer(c.l.DisplayError)
+	parse, err := url.Parse(urlstr)
 	if err != nil {
-		return nil, "", "", nil, nil, qr, err
+		return nil, "", nil, err
 	}
 	if strings.Contains(parse.Host, ":") {
 		parse.Host = strings.Split(parse.Host, ":")[0]
 	}
-	newWappalyzer.DetectDNS(parse.Host)
-	newWappalyzer.DetectRobots(url)
-
-	chromedp.ListenTarget(newContext, c.listen(newContext, &lock, requestURL, &lock_, &requestId, &qrl, qr))
+	//newWappalyzer.DetectDNS(parse.Host)
+	//newWappalyzer.DetectRobots(urlstr)
+	chromedp.ListenTarget(newContext, c.listen(newContext))
 	chromedp.ListenTarget(newContext, newWappalyzer.DetectListen(newContext))
-	// new tabs
-	// chromedp.Run -> newTarget -> target.CreateTarget -> (p *CreateTargetParams) Do -> context canceled/context deadline exceeded
-	// tabs can not auto close
-	if err = chromedp.Run(newContext, c.screenshot(url, &icp, &buf, &title, &lock_, &requestId, &jsfinder_href_src, newWappalyzer.DetectActions(), &qrl, qr)); err != nil {
-		return []byte{}, "", "", requestURL, nil, qr, errors.New("chromedp.Run error: " + err.Error())
+
+	if err = chromedp.Run(newContext, c.screenshot(urlstr, &buf, &title, newWappalyzer.DetectActions())); err != nil {
+		return []byte{}, "", nil, errors.New("chromedp.run error: " + err.Error())
 	}
-	lock.Lock()
-	defer lock.Unlock()
-	for urlstr := range jsfinder_href_src {
-		requestURL[urlstr] = true
-	}
-	return buf, icp, title, requestURL, newWappalyzer.GetFingers(), qr, nil
+	return buf, title, newWappalyzer.GetFingers(), nil
 }
 
-func (c *chrome) screenshot(urlstr string, icp *string, res *[]byte, title *string, lock_ *sync.Mutex, responseId *map[network.RequestID]bool, resq *map[string]bool, fingeractions chromedp.Action, qrl *sync.Mutex, qr map[string]bool) chromedp.Tasks {
+func (c *chrome) screenshot(urlstr string, res *[]byte, title *string, fingeractions chromedp.Action) chromedp.Tasks {
 	return chromedp.Tasks{
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			if len(c.conf_.Headers) > 0 {
@@ -317,19 +220,6 @@ func (c *chrome) screenshot(urlstr string, icp *string, res *[]byte, title *stri
 				if err != nil {
 					return err
 				}
-				// 同样也不能修改host头
-				//err := network.Enable().Do(ctx)
-				//if err != nil {
-				//	return err
-				//}
-				//m := make(map[string]interface{})
-				//for i := 0; i < len(c.conf_.Headers); i++ {
-				//	m[c.conf_.Headers[i].Name] = c.conf_.Headers[i].Value
-				//}
-				//err = network.SetExtraHTTPHeaders(m).Do(ctx)
-				//if err != nil {
-				//	return err
-				//}
 			}
 			_, err := page.AddScriptToEvaluateOnNewDocument(bypass_headless_detect).Do(ctx)
 			if err != nil {
@@ -368,77 +258,10 @@ func (c *chrome) screenshot(urlstr string, icp *string, res *[]byte, title *stri
 			*res = buf
 			return nil
 		}),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			node, err := dom.GetDocument().Do(ctx)
-			if err != nil {
-				return err
-			}
-			body, err := dom.GetOuterHTML().WithNodeID(node.NodeID).Do(ctx)
-			if err != nil {
-				return err
-			}
-			info := utils.ICPInfo(body)
-			icp = &info
-			return nil
-		}),
 		chromedp.Title(title),
-		// 获取JSFinder
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			if !c.conf_.GetPath && !c.conf_.GetUrl {
-				return nil
-			}
-			for ri := range *responseId {
-				body, err := network.GetResponseBody(ri).Do(ctx)
-				if err != nil {
-					c.l.Error(err)
-					continue
-				}
-				compile := regexp.MustCompile(`(?:"|')(((?:[a-zA-Z]{1,10}://|//)[^"'/]{1,}\.[a-zA-Z]{2,}[^"']{0,})|((?:/|\.\./|\./)[^"'><,;| *()(%%$^/\\\[\]][^"'><,;|()]{1,})|([a-zA-Z0-9_\-/]{1,}/[a-zA-Z0-9_\-/]{1,}\.(?:[a-zA-Z]{1,4}|action)(?:[\?|/][^"|']{0,}|))|([a-zA-Z0-9_\-]{1,}\.(?:php|asp|aspx|jsp|json|action|html|js|txt|xml)(?:\?[^"|']{0,}|)))(?:"|')`)
-				all := compile.FindAll(body, -1)
-				for i := 0; i < len(all); i++ {
-					url_ := strings.Trim(string(all[i]), " '\",;{}[]()`?")
-					if strings.HasPrefix(url_, "http") {
-						lock_.Lock()
-						(*resq)[url_] = true
-						lock_.Unlock()
-						if strings.HasSuffix(strings.ToUpper(url_), ".APK") {
-							qrl.Lock()
-							qr["apk ----> "+url_] = true
-							qrl.Unlock()
-						}
-					}
-				}
-			}
-			return nil
-		}),
-		// 执行JavaScript Get Page Href/Src
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			if !c.conf_.GetPath && !c.conf_.GetUrl {
-				return nil
-			}
-			_, _, err := runtime.Evaluate(`
-function cycle(a) {
-    for (var i = 0; i < a.children.length; i++) {
-        if (a.children[i].href !== undefined && a.children[i].href !== "" && a.children[i].href !== null) {
-            console.log("bufsnake " + a.children[i].href);
-        }
-        if (a.children[i].src !== undefined && a.children[i].src !== "" && a.children[i].src !== null) {
-            console.log("bufsnake " + a.children[i].src);
-        }
-        if (a.children[i].action !== undefined && a.children[i].action !== "" && a.children[i].action !== null) {
-            console.log("bufsnake " + a.children[i].action);
-        }
-        cycle(a.children[i]);
-    }
-}
-cycle(document.documentElement);
-`).Do(ctx)
-			return err
-		}),
 		fingeractions,
 		chromedp.Sleep(1 * time.Second),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-
 			// tab从右往左进行关闭 context deadline exceeded 就是因为这个
 			err := target.CloseTarget(chromedp.FromContext(ctx).Target.TargetID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Browser))
 			if err != nil {

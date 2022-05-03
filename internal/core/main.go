@@ -6,9 +6,7 @@ import (
 	"github.com/bufsnake/httpx/pkg/log"
 	"github.com/bufsnake/httpx/pkg/requests"
 	"github.com/bufsnake/httpx/pkg/screenshot"
-	"github.com/bufsnake/httpx/pkg/utils"
-	"github.com/bufsnake/httpx/pkg/wappalyzer"
-	"net/url"
+	"github.com/bufsnake/wappalyzer"
 	"strconv"
 	"strings"
 	"sync"
@@ -56,7 +54,7 @@ func (c *Core) Probe() error {
 			break
 		}
 		if c.conf.CIDR == "" {
-			for path, _ := range paths {
+			for path := range paths {
 				urlchan <- [2]string{host, path}
 			}
 			delete(c.conf.Probes, host)
@@ -76,7 +74,6 @@ func (c *Core) Probe() error {
 		delete(c.conf.Probes, host)
 	}
 	close(urlchan)
-
 	urlwait.Wait()
 	close(datas)
 	screenshot_wait.Wait()
@@ -131,15 +128,16 @@ func (c *Core) routine(w *sync.WaitGroup, u chan [2]string, datas chan models.Da
 		}
 		for j := 0; j < len(httpx.URLS); j++ {
 			data := models.Datas{
-				URL:        strings.Trim(httpx.URLS[j].GetUrl(), "/ "),
-				Title:      httpx.URLS[j].GetTitle(),
-				StatusCode: strconv.Itoa(httpx.URLS[j].GetStatusCode()),
-				BodyLength: strconv.Itoa(httpx.URLS[j].GetLength()),
-				CreateTime: time.Now().Format("2006-01-02 15:04:05"),
-				Image:      "",
-				HTTPDump:   httpx.URLS[j].GetHTTPDump(),
-				TLS:        httpx.URLS[j].GetTLS(),
-				ICP:        httpx.URLS[j].GetICP(),
+				URL:           strings.Trim(httpx.URLS[j].GetUrl(), "/ "),
+				Title:         httpx.URLS[j].GetTitle(),
+				StatusCode:    strconv.Itoa(httpx.URLS[j].GetStatusCode()),
+				BodyLength:    strconv.Itoa(httpx.URLS[j].GetLength()),
+				CreateTime:    time.Now().Format("2006-01-02 15:04:05"),
+				Image:         "",
+				HTTPDump:      httpx.URLS[j].GetHTTPDump(),
+				TLS:           httpx.URLS[j].GetTLS(),
+				ICP:           httpx.URLS[j].GetICP(),
+				XFrameOptions: httpx.URLS[j].GetXFrameOptions(),
 			}
 			datas <- data
 		}
@@ -155,19 +153,17 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 		qr := make(map[string]bool)
 		if !c.conf.DisableScreenshot {
 			var (
-				run   string
+				image string
 				icp   string
 				title string
 				err   error
 			)
-			reqs := make(map[string]bool)
 			fingers := make(map[string]wappalyzer.Technologie)
-			// Get Path from JS Files
-			run, icp, title, reqs, fingers, qr, err = screen_shot.Run(data.URL)
+			image, title, fingers, err = screen_shot.Run(data.URL)
 			if err != nil {
 				c.log.Error(err)
 			} else {
-				data.Image = run
+				data.Image = image
 				if icp != "" && icp != data.ICP {
 					data.ICP += "|" + icp
 				}
@@ -175,7 +171,6 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 			if title != "" {
 				data.Title = title
 			}
-			c.savePath(reqs)
 			if len(fingers) != 0 {
 				fingers_ := make([]models.Finger, 0)
 				for name, val := range fingers {
@@ -200,46 +195,5 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 		c.log.Println(data.StatusCode, data.URL, data.BodyLength, data.Title, data.CreateTime, qr)
 		c.log.SaveData(data)
 		c.log.PercentageAdd()
-	}
-}
-
-func (c *Core) savePath(reqs map[string]bool) {
-	c.spl.Lock()
-	defer c.spl.Unlock()
-	if c.conf.GetPath {
-		getpath := ""
-		geturl := ""
-		for urlstr, _ := range reqs {
-			parse, err := url.Parse(urlstr)
-			if err != nil {
-				c.log.Error(urlstr, err)
-				continue
-			}
-			if strings.Contains(parse.Host, ":") {
-				parse.Host = strings.Split(parse.Host, ":")[0]
-			}
-			for black, _ := range c.conf.OutOfRange {
-				if strings.Contains(parse.Host, black) {
-					parse.Host = ""
-				}
-			}
-			if parse.Host == "" {
-				continue
-			}
-			if c.conf.GetUrl {
-				geturl += urlstr + "\n"
-			}
-			subpaths := parsePath(parse.Scheme+"://"+parse.Host, parse.Path)
-			for subpath := range subpaths {
-				getpath += subpath + "\n"
-			}
-		}
-
-		if getpath != "" {
-			_ = utils.AppendFile(c.conf.Output+"_path", getpath)
-		}
-		if geturl != "" {
-			_ = utils.AppendFile(c.conf.Output+"_url", geturl)
-		}
 	}
 }

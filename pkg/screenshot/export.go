@@ -3,11 +3,11 @@ package screenshot
 import (
 	"github.com/bufsnake/httpx/config"
 	"github.com/bufsnake/httpx/pkg/log"
-	"github.com/bufsnake/httpx/pkg/wappalyzer"
+	"github.com/bufsnake/wappalyzer"
 )
 
 type Screenshot interface {
-	Run(url string) (string, string, string, map[string]bool, map[string]wappalyzer.Technologie, map[string]bool, error)
+	Run(url string) (string, string, map[string]wappalyzer.Technologie, error)
 	InitEnv() error
 	Cancel()
 	SwitchTab()
