@@ -159,7 +159,7 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 				err   error
 			)
 			fingers := make(map[string]wappalyzer.Technologie)
-			image, title, fingers, err = screen_shot.Run(data.URL)
+			image, title, fingers, err = screen_shot.Run(data.URL, data.XFrameOptions)
 			if err != nil {
 				c.log.Error(err)
 			} else {

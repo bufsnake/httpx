@@ -115,7 +115,8 @@ func (r *request) Run() error {
 			r.http_dump = string(resp)
 		}
 	}
-	r.xframeoptions = do.Header.Get("x-frame-options")
+	// 无视
+	r.xframeoptions = ""
 
 	if r.title == "400 The plain HTTP request was sent to HTTPS port" {
 		return errors.New("response title is '400 The plain HTTP request was sent to HTTPS port'")

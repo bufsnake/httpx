@@ -3,6 +3,7 @@ package screenshot
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/bufsnake/httpx/config"
@@ -13,9 +14,11 @@ import (
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -64,8 +67,8 @@ var bypass_headless_detect = `(function(w, n, wn) {
 })(window, navigator, window.navigator);`
 
 // png/icp/err
-func (c *chrome) Run(url string) (string, string, map[string]wappalyzer.Technologie, error) {
-	buf, title, fingers, err := c.run_chromedp(url)
+func (c *chrome) Run(url string, XFrameOptions string) (string, string, map[string]wappalyzer.Technologie, error) {
+	buf, title, fingers, err := c.run_chromedp(url, XFrameOptions)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -138,6 +141,7 @@ func (c *chrome) Cancel() {
 
 // 监听
 func (c *chrome) listen(ctx context.Context) func(ev interface{}) {
+	compile := regexp.MustCompile("(setTimeout\\(|setInterval\\(|Function\\(|alert\\(|eval\\(|\\.write\\(|\\.writeln\\(|\\.createComment\\(|\\.createTextNode\\(|\\.createElement\\(|\\.innerHTML|\\.className|\\.innerText|\\.textContent|\\.title|\\.href)")
 	return func(ev interface{}) {
 		switch e := ev.(type) {
 		case *fetch.EventRequestPaused:
@@ -180,11 +184,30 @@ func (c *chrome) listen(ctx context.Context) func(ev interface{}) {
 					c.l.Error(errors.New("\nrunChromedp error: " + err.Error()))
 				}
 			}()
+		case *runtime.EventConsoleAPICalled:
+			for i := 0; i < len(e.Args); i++ {
+				var val string
+				err := json.Unmarshal(e.Args[i].Value, &val)
+				if err != nil {
+					continue
+				}
+				if !strings.HasPrefix(val, "bufsnake ") {
+					continue
+				}
+				if !compile.MatchString(val) {
+					continue
+				}
+				val = strings.ReplaceAll(val, "bufsnake ", "==== ")
+				err = utils.AppendFile(c.conf_.Output+"_postMessage.txt", val+"\n")
+				if err != nil {
+					c.l.Error(err)
+				}
+			}
 		}
 	}
 }
 
-func (c *chrome) run_chromedp(urlstr string) ([]byte, string, map[string]wappalyzer.Technologie, error) {
+func (c *chrome) run_chromedp(urlstr string, XFrameOptions string) ([]byte, string, map[string]wappalyzer.Technologie, error) {
 	var (
 		buf   []byte
 		title string
@@ -205,14 +228,13 @@ func (c *chrome) run_chromedp(urlstr string) ([]byte, string, map[string]wappaly
 	//newWappalyzer.DetectRobots(urlstr)
 	chromedp.ListenTarget(newContext, c.listen(newContext))
 	chromedp.ListenTarget(newContext, newWappalyzer.DetectListen(newContext))
-
-	if err = chromedp.Run(newContext, c.screenshot(urlstr, &buf, &title, newWappalyzer.DetectActions())); err != nil {
+	if err = chromedp.Run(newContext, c.screenshot(urlstr, &buf, &title, newWappalyzer.DetectActions(), XFrameOptions)); err != nil {
 		return []byte{}, "", nil, errors.New("chromedp.run error: " + err.Error())
 	}
 	return buf, title, newWappalyzer.GetFingers(), nil
 }
 
-func (c *chrome) screenshot(urlstr string, res *[]byte, title *string, fingeractions chromedp.Action) chromedp.Tasks {
+func (c *chrome) screenshot(urlstr string, res *[]byte, title *string, fingeractions chromedp.Action, XFrameOptions string) chromedp.Tasks {
 	return chromedp.Tasks{
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			if len(c.conf_.Headers) > 0 {
@@ -257,6 +279,22 @@ func (c *chrome) screenshot(urlstr string, res *[]byte, title *string, fingeract
 			}
 			*res = buf
 			return nil
+		}),
+		// 执行获取postMessage监听函数
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			XFrameOptions = strings.ToUpper(XFrameOptions)
+			if XFrameOptions == "DENY" || XFrameOptions == "SAMEORIGIN" {
+				return nil
+			}
+			var r = &runtime.RemoteObject{}
+			err := chromedp.EvaluateAsDevTools(fmt.Sprintf(`
+var listeners = getEventListeners(window);
+if (listeners.message != null && listeners.message != undefined) {
+    for (var i = 0; i < listeners.message.length; i++) {
+        console.log("bufsnake %s \n"+listeners.message[i].listener.toString());
+    }
+}`, urlstr), &r).Do(ctx)
+			return err
 		}),
 		chromedp.Title(title),
 		fingeractions,
