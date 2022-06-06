@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"github.com/bufsnake/httpx/config"
 	"github.com/bufsnake/httpx/pkg/log"
 	"github.com/bufsnake/httpx/pkg/useragent"
@@ -92,6 +93,9 @@ func (r *request) Run() error {
 		return err
 	}
 	defer do.Body.Close()
+	if do.StatusCode == 101 {
+		return fmt.Errorf("%s status is %s", req.URL, do.Status)
+	}
 	resp, err := httputil.DumpResponse(do, true)
 	if err != nil {
 		return err
