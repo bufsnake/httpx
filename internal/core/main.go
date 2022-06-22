@@ -156,20 +156,24 @@ func (c *Core) screenshot(w *sync.WaitGroup, datas chan models.Datas, screen_sho
 				image string
 				icp   string
 				title string
+				body  string
 				err   error
 			)
 			fingers := make(map[string]wappalyzer.Technologie)
-			image, title, fingers, err = screen_shot.Run(data.URL, data.XFrameOptions)
+			image, title, body, fingers, err = screen_shot.Run(data.URL, data.XFrameOptions)
 			if err != nil {
 				c.log.Error(err)
-			} else {
-				data.Image = image
-				if icp != "" && icp != data.ICP {
-					data.ICP += "|" + icp
-				}
+			}
+			data.Image = image
+			if icp != "" && icp != data.ICP {
+				data.ICP += "|" + icp
 			}
 			if title != "" {
 				data.Title = title
+			}
+			if body != "" {
+				data.BodyLength = strconv.Itoa(len(body))
+				data.HTTPDump = body
 			}
 			if len(fingers) != 0 {
 				fingers_ := make([]models.Finger, 0)

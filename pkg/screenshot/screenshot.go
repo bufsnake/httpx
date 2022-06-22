@@ -12,6 +12,7 @@ import (
 	"github.com/bufsnake/httpx/pkg/utils"
 	"github.com/bufsnake/wappalyzer"
 	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/fetch"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
@@ -66,13 +67,13 @@ var bypass_headless_detect = `(function(w, n, wn) {
   );
 })(window, navigator, window.navigator);`
 
-// png/icp/err
-func (c *chrome) Run(url string, XFrameOptions string) (string, string, map[string]wappalyzer.Technologie, error) {
-	buf, title, fingers, err := c.run_chromedp(url, XFrameOptions)
+// image, title, body, fingers, err
+func (c *chrome) Run(url string, XFrameOptions string) (string, string, string, map[string]wappalyzer.Technologie, error) {
+	buf, title, body, fingers, err := c.run_chromedp(url, XFrameOptions)
 	if err != nil {
-		return "", "", nil, err
+		return "", title, body, nil, err
 	}
-	return base64.StdEncoding.EncodeToString(buf), title, fingers, nil
+	return base64.StdEncoding.EncodeToString(buf), title, body, fingers, nil
 }
 
 // Init Start CTX
@@ -90,6 +91,7 @@ func (c *chrome) InitEnv() error {
 		chromedp.Flag("proxy-bypass-list", "<-loopback>"),
 	)
 	if c.conf_.HeadlessProxy != "" {
+		fmt.Println(c.conf_.HeadlessProxy)
 		opts = append(opts, chromedp.ProxyServer(c.conf_.HeadlessProxy))
 	}
 	if c.conf_.ChromePath != "" {
@@ -207,10 +209,11 @@ func (c *chrome) listen(ctx context.Context) func(ev interface{}) {
 	}
 }
 
-func (c *chrome) run_chromedp(urlstr string, XFrameOptions string) ([]byte, string, map[string]wappalyzer.Technologie, error) {
+func (c *chrome) run_chromedp(urlstr string, XFrameOptions string) ([]byte, string, string, map[string]wappalyzer.Technologie, error) {
 	var (
 		buf   []byte
 		title string
+		body  string
 	)
 	newContext, cancelFunc := chromedp.NewContext(c.ctx)
 	defer cancelFunc()
@@ -219,7 +222,7 @@ func (c *chrome) run_chromedp(urlstr string, XFrameOptions string) ([]byte, stri
 	newWappalyzer := wappalyzer.NewWappalyzer(c.l.DisplayError)
 	parse, err := url.Parse(urlstr)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", "", nil, err
 	}
 	if strings.Contains(parse.Host, ":") {
 		parse.Host = strings.Split(parse.Host, ":")[0]
@@ -228,13 +231,13 @@ func (c *chrome) run_chromedp(urlstr string, XFrameOptions string) ([]byte, stri
 	//newWappalyzer.DetectRobots(urlstr)
 	chromedp.ListenTarget(newContext, c.listen(newContext))
 	chromedp.ListenTarget(newContext, newWappalyzer.DetectListen(newContext))
-	if err = chromedp.Run(newContext, c.screenshot(urlstr, &buf, &title, newWappalyzer.DetectActions(), XFrameOptions)); err != nil {
-		return []byte{}, "", nil, errors.New("chromedp.run error: " + err.Error())
+	if err = chromedp.Run(newContext, c.screenshot(urlstr, &buf, &title, &body, newWappalyzer.DetectActions(), XFrameOptions)); err != nil {
+		return []byte{}, "", "", nil, errors.New("chromedp.run error: " + err.Error())
 	}
-	return buf, title, newWappalyzer.GetFingers(), nil
+	return buf, title, body, newWappalyzer.GetFingers(), nil
 }
 
-func (c *chrome) screenshot(urlstr string, res *[]byte, title *string, fingeractions chromedp.Action, XFrameOptions string) chromedp.Tasks {
+func (c *chrome) screenshot(urlstr string, res *[]byte, title, body *string, fingeractions chromedp.Action, XFrameOptions string) chromedp.Tasks {
 	return chromedp.Tasks{
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			if len(c.conf_.Headers) > 0 {
@@ -300,8 +303,17 @@ if (listeners.message != null && listeners.message != undefined) {
 		fingeractions,
 		chromedp.Sleep(1 * time.Second),
 		chromedp.ActionFunc(func(ctx context.Context) error {
+			root, err := dom.GetDocument().WithDepth(1).Do(ctx)
+			if err != nil {
+				return err
+			}
+			html, err := dom.GetOuterHTML().WithBackendNodeID(root.BackendNodeID).Do(ctx)
+			if err != nil {
+				return err
+			}
+			*body = html
 			// tab从右往左进行关闭 context deadline exceeded 就是因为这个
-			err := target.CloseTarget(chromedp.FromContext(ctx).Target.TargetID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Browser))
+			err = target.CloseTarget(chromedp.FromContext(ctx).Target.TargetID).Do(cdp.WithExecutor(ctx, chromedp.FromContext(ctx).Browser))
 			if err != nil {
 				return errors.New(fmt.Sprintf("CloseTarget %s", err))
 			}

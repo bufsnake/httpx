@@ -3,7 +3,7 @@ package api
 import (
 	"github.com/bufsnake/httpx/internal/models"
 	"github.com/bufsnake/httpx/internal/modelsImpl"
-	"github.com/bufsnake/httpx/pkg/query"
+	"github.com/bufsnake/query"
 	"github.com/bufsnake/wappalyzer"
 	"github.com/gin-gonic/gin"
 	"log"
@@ -15,8 +15,15 @@ type api struct {
 	db *modelsImpl.Database
 }
 
-func NewAPI(db *modelsImpl.Database) api {
-	return api{db: db}
+func NewAPI(db *modelsImpl.Database) *api {
+	err := query.AddKeywords([]string{
+		"ip", "host", "title", "statuscode", "bodylength", "createtime",
+		"body", "tls", "icp",
+	})
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return &api{db: db}
 }
 
 type getdata struct {
@@ -85,7 +92,7 @@ func (a *api) Search(c *gin.Context) {
 		c.String(500, "keyword is empty")
 		return
 	}
-	sql, params, formatQuery, err := query.AnalysisQuery(q.Word)
+	sql, params, formatQuery, err := query.AnalyseQuery(q.Word)
 	if err != nil {
 		c.String(500, "have an error in your query syntax")
 		return
@@ -131,7 +138,7 @@ func (a *api) Copy(c *gin.Context) {
 			return
 		}
 	} else {
-		sql, params, _, err := query.AnalysisQuery(q.Word)
+		sql, params, _, err := query.AnalyseQuery(q.Word)
 		if err != nil {
 			c.String(500, "have an error in your query syntax")
 			return
