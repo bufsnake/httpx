@@ -8,7 +8,7 @@ require github.com/chromedp/cdproto v0.0.0-20220620034043-93c6adfcda6a
 
 require (
 	github.com/bufsnake/parseip v0.0.0-20210416105416-fc19e9d32da7
-	github.com/bufsnake/query v0.0.0-20220622025727-3847305c1438
+	github.com/bufsnake/query v0.0.0-20220623163411-df631dab8ed2
 	github.com/bufsnake/wappalyzer v0.0.0-20220622031713-6e3d99ae0ac0
 	github.com/chromedp/chromedp v0.8.2
 	github.com/gin-gonic/gin v1.7.7
@@ -22,7 +22,6 @@ require (
 	golang.org/x/net v0.0.0-20220621193019-9d032be2e588 // indirect
 	golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c // indirect
 	golang.org/x/tools v0.1.11 // indirect
-	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	gorm.io/driver/sqlite v1.1.5
 	gorm.io/gorm v1.21.15
 )
