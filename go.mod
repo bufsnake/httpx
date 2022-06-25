@@ -8,7 +8,7 @@ require github.com/chromedp/cdproto v0.0.0-20220620034043-93c6adfcda6a
 
 require (
 	github.com/bufsnake/parseip v0.0.0-20210416105416-fc19e9d32da7
-	github.com/bufsnake/query v0.0.0-20220623163411-df631dab8ed2
+	github.com/bufsnake/query v0.0.0-20220624055323-e31891d6c47e
 	github.com/bufsnake/wappalyzer v0.0.0-20220622031713-6e3d99ae0ac0
 	github.com/chromedp/chromedp v0.8.2
 	github.com/gin-gonic/gin v1.7.7
